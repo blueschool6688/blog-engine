@@ -1,0 +1,14 @@
+# Air hot reload binary directory
+tmp/
+
+# Executables
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+cms
+
+# Storage & Logs
+storages/logs/*.log
+!storages/logs/.gitkeep

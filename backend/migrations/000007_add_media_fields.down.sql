@@ -1,0 +1,6 @@
+ALTER TABLE "media"
+DROP COLUMN IF EXISTS "type",
+DROP COLUMN IF EXISTS "duration",
+DROP COLUMN IF EXISTS "resolution",
+DROP COLUMN IF EXISTS "file_size",
+DROP COLUMN IF EXISTS "mime_type";

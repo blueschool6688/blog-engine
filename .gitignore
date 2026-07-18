@@ -1,0 +1,8 @@
+/web/node_modules
+.env
+.env.backup
+/backend/vendor
+npm-debug.log
+yarn-error.log
+/.idea
+/.vscode
