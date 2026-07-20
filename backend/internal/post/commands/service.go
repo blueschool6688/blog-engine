@@ -21,8 +21,11 @@ import (
 
 type CreatePostCommand struct {
 	Title        string     `json:"title" validate:"required"`
+	TitleEn      string     `json:"title_en"`
 	Slug         string     `json:"slug"`
+	SlugEn       string     `json:"slug_en"`
 	Content      string     `json:"content"`
+	ContentEn    string     `json:"content_en"`
 	CoverMediaID *uint      `json:"cover_media_id"`
 	Status       string     `json:"status"` // draft, published
 	AuthorID     *uint      `json:"author_id"`
@@ -31,14 +34,20 @@ type CreatePostCommand struct {
 	MetaTitle    string     `json:"meta_title"`
 	MetaDesc     string     `json:"meta_desc"`
 	Excerpt      string     `json:"excerpt"`
+	ExcerptEn    string     `json:"excerpt_en"`
 	IsFeatured   bool       `json:"is_featured"`
+	IsDocument   bool       `json:"is_document"`
+	PDFMediaID   *uint      `json:"pdf_media_id"`
 	PublishedAt  *time.Time `json:"published_at"`
 }
 
 type UpdatePostCommand struct {
 	Title        string     `json:"title" validate:"required"`
+	TitleEn      string     `json:"title_en"`
 	Slug         string     `json:"slug"`
+	SlugEn       string     `json:"slug_en"`
 	Content      string     `json:"content"`
+	ContentEn    string     `json:"content_en"`
 
 	CoverMediaID *uint      `json:"cover_media_id"`
 	Status       string     `json:"status"` // draft, published
@@ -47,7 +56,10 @@ type UpdatePostCommand struct {
 	MetaTitle    string     `json:"meta_title"`
 	MetaDesc     string     `json:"meta_desc"`
 	Excerpt      string     `json:"excerpt"`
+	ExcerptEn    string     `json:"excerpt_en"`
 	IsFeatured   bool       `json:"is_featured"`
+	IsDocument   bool       `json:"is_document"`
+	PDFMediaID   *uint      `json:"pdf_media_id"`
 	PublishedAt  *time.Time `json:"published_at"`
 }
 
@@ -88,15 +100,21 @@ func (s *CommandService) CreatePost(ctx context.Context, cmd CreatePostCommand) 
 
 	post := &models.Post{
 		Title:        cmd.Title,
+		TitleEn:      cmd.TitleEn,
 		Slug:         slug,
+		SlugEn:       cmd.SlugEn,
 		Content:      cmd.Content,
+		ContentEn:    cmd.ContentEn,
 		CoverMediaID: cmd.CoverMediaID,
 		Status:       cmd.Status,
 		AuthorID:     cmd.AuthorID,
 		MetaTitle:    cmd.MetaTitle,
 		MetaDesc:     cmd.MetaDesc,
 		Excerpt:      cmd.Excerpt,
+		ExcerptEn:    cmd.ExcerptEn,
 		IsFeatured:   cmd.IsFeatured,
+		IsDocument:   cmd.IsDocument,
+		PDFMediaID:   cmd.PDFMediaID,
 		PublishedAt:  cmd.PublishedAt,
 	}
 	if post.Status == "" {
@@ -150,14 +168,20 @@ func (s *CommandService) UpdatePost(ctx context.Context, id uint, cmd UpdatePost
 	}
 
 	post.Title = cmd.Title
+	post.TitleEn = cmd.TitleEn
 	post.Slug = slug
+	post.SlugEn = cmd.SlugEn
 	post.Content = cmd.Content
+	post.ContentEn = cmd.ContentEn
 	post.CoverMediaID = cmd.CoverMediaID
 	post.Status = cmd.Status
 	post.MetaTitle = cmd.MetaTitle
 	post.MetaDesc = cmd.MetaDesc
 	post.Excerpt = cmd.Excerpt
+	post.ExcerptEn = cmd.ExcerptEn
 	post.IsFeatured = cmd.IsFeatured
+	post.IsDocument = cmd.IsDocument
+	post.PDFMediaID = cmd.PDFMediaID
 	post.PublishedAt = cmd.PublishedAt
 	if post.Status == "published" && post.PublishedAt == nil {
 		now := time.Now()
@@ -214,6 +238,7 @@ func (s *CommandService) UpdatePost(ctx context.Context, id uint, cmd UpdatePost
 				return db.Order("post_media.sort_order ASC")
 			}).
 			Preload("Gallery.Media").
+			Preload("PDFMedia").
 			Where("id = ?", post.ID).
 			First(&fullPost).Error
 		
@@ -236,15 +261,21 @@ func (s *CommandService) UpdatePost(ctx context.Context, id uint, cmd UpdatePost
 	return post, nil
 }
 
-func (s *CommandService) DeletePost(ctx context.Context, id uint) error {
+func (s *CommandService) DeletePost(ctx context.Context, id uint, force bool) error {
 	var post models.Post
 	var slug string
 	if err := s.repo.DB.WithContext(ctx).Select("slug").Where("id = ?", id).First(&post).Error; err == nil {
 		slug = post.Slug
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("delete post: %w", err)
+	if force {
+		if err := s.repo.PermanentDelete(ctx, id); err != nil {
+			return fmt.Errorf("permanent delete post: %w", err)
+		}
+	} else {
+		if err := s.repo.Delete(ctx, id); err != nil {
+			return fmt.Errorf("delete post: %w", err)
+		}
 	}
 
 	s.invalidateListCache(ctx)
@@ -256,6 +287,15 @@ func (s *CommandService) DeletePost(ctx context.Context, id uint) error {
 		cloudflare.PurgeCacheAsync(s.cfZoneID, s.cfAPIToken, detailUrls)
 	}
 
+	return nil
+}
+
+func (s *CommandService) RestorePost(ctx context.Context, id uint) error {
+	if err := s.repo.Restore(ctx, id); err != nil {
+		return fmt.Errorf("restore post: %w", err)
+	}
+	s.invalidateListCache(ctx)
+	s.invalidateDetailCache(ctx, id)
 	return nil
 }
 

@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router';
 import { publicService, getFullUrl } from '../services/api';
-import type { Post } from '../services/api';
+import type { Post, Category } from '../services/api';
 import { CommentSection } from '../components/CommentSection';
+import TranslateToggle from '../components/TranslateToggle';
 import {
   ArrowLeft,
   Calendar,
   Clock,
-  Eye,
   User,
   Tag,
   ChevronRight,
@@ -15,7 +15,8 @@ import {
   Copy,
   List,
   Image,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { Spin } from 'antd';
@@ -107,6 +108,17 @@ function processHtml(html: string, language: 'vi' | 'en'): string {
   return doc.body.innerHTML;
 }
 
+
+const buildCategoryBreadcrumbs = (cat: Category | null): Category[] => {
+  const crumbs: Category[] = [];
+  let current = cat;
+  while (current) {
+    crumbs.unshift(current);
+    current = current.parent || null;
+  }
+  return crumbs;
+};
+
 function formatRelative(dateStr: string, t: any): string {
   try {
     const date = new Date(dateStr);
@@ -135,6 +147,16 @@ export const BlogPostDetail: React.FC = () => {
   const [activeId, setActiveId] = useState('');
   const [tocOpen, setTocOpen] = useState(false);
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
+
+  const handleTocClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    const element = document.getElementById(targetId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.history.pushState(null, '', `#${targetId}`);
+      setActiveId(targetId);
+    }
+  };
 
   useEffect(() => {
     if (!slug) return;
@@ -217,7 +239,7 @@ export const BlogPostDetail: React.FC = () => {
     return () => document.removeEventListener('click', handleCopyClick);
   }, [handleCopyClick]);
 
-  if (loading) {
+  if (loading || !post) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 animate-pulse">
         <Spin size="large" />
@@ -403,15 +425,15 @@ export const BlogPostDetail: React.FC = () => {
             <Home className="w-3.5 h-3.5" />
             <span>Trang chủ</span>
           </Link>
-          <ChevronRight className="w-3 h-3 text-slate-300 dark:text-gray-700" />
-          {primaryCategory && (
-            <>
-              <Link to={`/?category=${primaryCategory.slug}`} className="hover:text-accentBlue transition-colors font-medium">
-                {primaryCategory.name}
+          <ChevronRight className="w-3.5 h-3.5 text-slate-350" />
+          {primaryCategory && buildCategoryBreadcrumbs(primaryCategory).map((crumb) => (
+            <React.Fragment key={crumb.id}>
+              <Link to={`/?category=${crumb.slug}`} className="hover:text-accentBlue transition-colors font-medium">
+                {crumb.name}
               </Link>
-              <ChevronRight className="w-3 h-3 text-slate-300 dark:text-gray-700" />
-            </>
-          )}
+              <ChevronRight className="w-3.5 h-3.5 text-slate-355" />
+            </React.Fragment>
+          ))}
           <span className="text-slate-700 dark:text-gray-300 font-medium truncate max-w-[180px] md:max-w-sm">{post.title}</span>
         </nav>
 
@@ -455,19 +477,41 @@ export const BlogPostDetail: React.FC = () => {
               )}
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
-                <span>{formatRelative(post.published_at, t)}</span>
+                <span>{formatRelative(post.published_at || post.created_at, t)}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 <span>{readTime} phút đọc</span>
               </div>
-              {/* <div className="flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5" />
-                <span>{(post.view_count || 0).toLocaleString()} lượt xem</span>
-              </div> */}
             </div>
 
-            {post.cover_media?.url && (
+            {/* PDF viewer for Document Post */}
+            {post.is_document && post.pdf_media && (
+              <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-red-500/25 bg-slate-900/40 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-red-500">
+                    <FileText className="w-5 h-5" />
+                    <span className="text-sm font-bold">{post.pdf_media.file_name}</span>
+                  </div>
+                  <a
+                    href={getFullUrl(post.pdf_media.url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all"
+                  >
+                    Tải PDF
+                  </a>
+                </div>
+                <iframe
+                  src={getFullUrl(post.pdf_media.url)}
+                  title="Document PDF viewer"
+                  className="w-full h-[600px] border border-slate-800 rounded-xl bg-slate-950"
+                />
+              </div>
+            )}
+
+            {/* Cover image (render if not document or doc doesn't cover pdf) */}
+            {!post.is_document && post.cover_media?.url && (
               <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-slate-200/60 dark:border-slate-800/60">
                 <img
                   src={getFullUrl(post.cover_media.url)}
@@ -494,7 +538,10 @@ export const BlogPostDetail: React.FC = () => {
                       <a
                         key={item.id}
                         href={`#${item.id}`}
-                        onClick={() => setTocOpen(false)}
+                        onClick={(e) => {
+                          setTocOpen(false);
+                          handleTocClick(e, item.id);
+                        }}
                         className={`block text-xs py-1.5 text-slate-600 dark:text-gray-400 hover:text-accentBlue transition-colors ${item.level === 3 ? 'pl-5' : 'pl-2'}`}
                       >
                         {item.text}
@@ -505,9 +552,10 @@ export const BlogPostDetail: React.FC = () => {
               </div>
             )}
 
-            <div
-              className="post-content"
-              dangerouslySetInnerHTML={{ __html: processedHtml }}
+            {/* Nội dung bài viết — có nút dịch AI sang ngôn ngữ còn lại */}
+            <TranslateToggle
+              content={processedHtml}
+              className="post-content-wrapper"
             />
 
             {post.gallery && post.gallery.length > 0 && (
@@ -604,6 +652,7 @@ export const BlogPostDetail: React.FC = () => {
                       <a
                         key={item.id}
                         href={`#${item.id}`}
+                        onClick={(e) => handleTocClick(e, item.id)}
                         className={`flex items-center gap-1.5 text-[12.5px] leading-snug py-1.5 rounded-lg px-2.5 transition-all duration-200 group ${item.level === 3 ? 'pl-6 text-[11.5px]' : ''
                           } ${activeId === item.id
                             ? 'text-accentBlue font-semibold bg-accentBlue/8 dark:bg-accentBlue/12'

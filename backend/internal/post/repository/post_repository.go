@@ -31,6 +31,7 @@ func (r *PostRepository) FindByIDWithMedia(ctx context.Context, id uint) (*model
 			return db.Order("post_media.sort_order ASC")
 		}).
 		Preload("Gallery.Media").
+		Preload("PDFMedia").
 		First(&post, id).Error; err != nil {
 		return nil, fmt.Errorf("find post by id with media: %w", err)
 	}
@@ -48,6 +49,7 @@ func (r *PostRepository) FindWithPaginationWithMedia(ctx context.Context, offset
 			return db.Order("post_media.sort_order ASC")
 		}).
 		Preload("Gallery.Media").
+		Preload("PDFMedia").
 		Offset(offset).Limit(limit).Order("id desc")
 	for k, v := range query {
 		db = db.Where(k, v)
@@ -56,4 +58,12 @@ func (r *PostRepository) FindWithPaginationWithMedia(ctx context.Context, offset
 		return nil, fmt.Errorf("find posts with media and pagination: %w", err)
 	}
 	return posts, nil
+}
+
+func (r *PostRepository) Restore(ctx context.Context, id uint) error {
+	return r.DB.WithContext(ctx).Unscoped().Model(&models.Post{}).Where("id = ?", id).Update("deleted_at", nil).Error
+}
+
+func (r *PostRepository) PermanentDelete(ctx context.Context, id uint) error {
+	return r.DB.WithContext(ctx).Unscoped().Delete(&models.Post{}, id).Error
 }

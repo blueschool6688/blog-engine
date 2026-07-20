@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useRouteLoaderData } from 'react-router';
+import { setCookie } from '../utils/cookie';
 
 export type Language = 'vi' | 'en';
 
@@ -132,6 +134,22 @@ const dictionary: Dictionary = {
   editor_schedule_label: { vi: 'Ngày giờ xuất bản (Lên lịch)', en: 'Publish Date & Time (Schedule)' },
   editor_schedule_help: { vi: 'Thiết lập ngày tương lai để lên lịch, hoặc để trống để xuất bản ngay.', en: 'Set a future date to schedule publication, or leave blank to publish immediately.' },
   editor_featured_label: { vi: 'Đánh dấu là bài viết nổi bật', en: 'Mark as Featured Post' },
+
+  // Added Custom Localization keys
+  category_name: { vi: 'Tên chuyên mục', en: 'Category Name' },
+  parent_category: { vi: 'Chuyên mục cha', en: 'Parent Category' },
+  description: { vi: 'Mô tả', en: 'Description' },
+  actions: { vi: 'Thao tác', en: 'Actions' },
+  show_deleted: { vi: 'Hiển thị đã xóa', en: 'Show Deleted' },
+  create_category: { vi: 'Tạo chuyên mục', en: 'Create Category' },
+  edit_category: { vi: 'Sửa chuyên mục', en: 'Edit Category' },
+  tag_name: { vi: 'Tên thẻ tag', en: 'Tag Name' },
+  create_tag: { vi: 'Tạo thẻ tag', en: 'Create Tag' },
+  active_tags: { vi: 'Các thẻ tag hoạt động', en: 'Active Tags' },
+  deleted_tags: { vi: 'Các thẻ tag đã xóa', en: 'Deleted Tags' },
+  save_changes: { vi: 'Lưu thay đổi', en: 'Save Changes' },
+  cancel: { vi: 'Hủy bỏ', en: 'Cancel' },
+  back: { vi: 'Quay lại', en: 'Back' },
 };
 
 interface LanguageContextProps {
@@ -143,17 +161,18 @@ interface LanguageContextProps {
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>(() => {
-    if (typeof window === 'undefined') return 'vi';
-    const saved = localStorage.getItem('app_language');
-    return (saved === 'vi' || saved === 'en' ? saved : 'vi') as Language;
-  });
+  const rootData = useRouteLoaderData("root") as { theme: string; language: Language } | null;
+  const [language, setLanguageState] = useState<Language>(() => rootData?.language || 'vi');
+
+  useEffect(() => {
+    if (rootData?.language) {
+      setLanguageState(rootData.language);
+    }
+  }, [rootData?.language]);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('app_language', lang);
-    }
+    setCookie('language', lang, 365);
   };
 
   const t = (key: string): string => {

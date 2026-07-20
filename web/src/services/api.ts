@@ -58,8 +58,15 @@ export interface Category {
   created_at: string;
   updated_at: string;
   name: string;
+  name_en?: string;
   slug: string;
+  slug_en?: string;
   description?: string;
+  description_en?: string;
+  parent_id?: number | null;
+  parent?: Category | null;
+  children?: Category[];
+  deleted_at?: string | null;
 }
 
 export interface Tag {
@@ -68,6 +75,7 @@ export interface Tag {
   updated_at: string;
   name: string;
   slug: string;
+  deleted_at?: string | null;
 }
 
 export interface User {
@@ -142,8 +150,11 @@ export interface Post {
   created_at: string;
   updated_at: string;
   title: string;
+  title_en?: string;
   slug: string;
+  slug_en?: string;
   content: string;
+  content_en?: string;
   cover_media_id?: number | null;
   cover_media?: Media;
   status: 'draft' | 'published';
@@ -156,9 +167,14 @@ export interface Post {
   meta_title?: string;
   meta_desc?: string;
   excerpt?: string;
+  excerpt_en?: string;
   is_featured?: boolean;
   published_at?: string | null;
   view_count?: number;
+  is_document?: boolean;
+  pdf_media_id?: number | null;
+  pdf_media?: Media | null;
+  deleted_at?: string | null;
 }
 
 export interface APIResponse<T> {
@@ -194,9 +210,9 @@ export const mediaService = {
 };
 
 export const postService = {
-  list: async (offset = 0, limit = 10, status = '', search = '', category_id?: number, tag_id?: number, is_featured?: boolean) => {
+  list: async (offset = 0, limit = 10, status = '', search = '', category_id?: number, tag_id?: number, is_featured?: boolean, with_deleted = false) => {
     const response = await api.get<APIResponse<{ items: Post[]; total: number }>>('/posts', {
-      params: { offset, limit, status, search, category_id, tag_id, is_featured },
+      params: { offset, limit, status, search, category_id, tag_id, is_featured, with_deleted },
     });
     return response.data;
   },
@@ -212,8 +228,12 @@ export const postService = {
     const response = await api.put<APIResponse<Post>>(`/posts/${id}`, post);
     return response.data;
   },
-  delete: async (id: number) => {
-    const response = await api.delete<APIResponse<null>>(`/posts/${id}`);
+  delete: async (id: number, force = false) => {
+    const response = await api.delete<APIResponse<null>>(`/posts/${id}`, { params: { force } });
+    return response.data;
+  },
+  restore: async (id: number) => {
+    const response = await api.post<APIResponse<null>>(`/posts/${id}/restore`);
     return response.data;
   },
   getGallery: async (postId: number) => {
@@ -239,35 +259,43 @@ export const postService = {
 };
 
 export const categoryService = {
-  list: async () => {
-    const response = await api.get<APIResponse<Category[]>>('/categories');
+  list: async (with_deleted = false) => {
+    const response = await api.get<APIResponse<Category[]>>('/categories', { params: { with_deleted } });
     return response.data;
   },
-  create: async (data: { name: string; slug?: string; description?: string }) => {
+  create: async (data: { name: string; name_en?: string; slug?: string; slug_en?: string; description?: string; description_en?: string; parent_id?: number | null }) => {
     const response = await api.post<APIResponse<Category>>('/categories', data);
     return response.data;
   },
-  update: async (id: number, data: { name: string; slug?: string; description?: string }) => {
+  update: async (id: number, data: { name: string; name_en?: string; slug?: string; slug_en?: string; description?: string; description_en?: string; parent_id?: number | null }) => {
     const response = await api.put<APIResponse<Category>>(`/categories/${id}`, data);
     return response.data;
   },
-  delete: async (id: number) => {
-    const response = await api.delete<APIResponse<null>>(`/categories/${id}`);
+  delete: async (id: number, force = false) => {
+    const response = await api.delete<APIResponse<null>>(`/categories/${id}`, { params: { force } });
+    return response.data;
+  },
+  restore: async (id: number) => {
+    const response = await api.post<APIResponse<null>>(`/categories/${id}/restore`);
     return response.data;
   },
 };
 
 export const tagService = {
-  list: async () => {
-    const response = await api.get<APIResponse<Tag[]>>('/tags');
+  list: async (with_deleted = false) => {
+    const response = await api.get<APIResponse<Tag[]>>('/tags', { params: { with_deleted } });
     return response.data;
   },
   create: async (data: { name: string; slug?: string }) => {
     const response = await api.post<APIResponse<Tag>>('/tags', data);
     return response.data;
   },
-  delete: async (id: number) => {
-    const response = await api.delete<APIResponse<null>>(`/tags/${id}`);
+  delete: async (id: number, force = false) => {
+    const response = await api.delete<APIResponse<null>>(`/tags/${id}`, { params: { force } });
+    return response.data;
+  },
+  restore: async (id: number) => {
+    const response = await api.post<APIResponse<null>>(`/tags/${id}/restore`);
     return response.data;
   },
 };
@@ -456,3 +484,66 @@ export const getFullUrl = (path: string) => {
   const origin = baseUrl.replace(/\/api$/, '');
   return `${origin}${path}`;
 };
+
+// ─── Translate Service ────────────────────────────────────────────────────────
+
+export interface TranslateRequest {
+  content: string;
+  target_lang: 'vi' | 'en';
+  source_lang?: string;
+}
+
+export interface TranslateResponse {
+  translated_text: string;
+  source_lang: string;
+  from_cache: boolean;
+  /** true nếu một số chunk dịch thất bại — phần đó là nội dung gốc */
+  partial?: boolean;
+  error?: string;
+  /** Điền khi backend chuyển sang async mode */
+  job_id?: string;
+  status?: 'pending' | 'processing' | 'done' | 'failed';
+}
+
+export interface AsyncJobResult {
+  job_id: string;
+  status: 'pending' | 'processing' | 'done' | 'failed';
+  translated_text?: string;
+  partial?: boolean;
+  error?: string;
+}
+
+export interface BatchTranslateResponse {
+  results: TranslateResponse[];
+}
+
+/**
+ * translateService cung cấp các method để dịch nội dung động qua backend AI.
+ * KHÔNG gọi trực tiếp NVIDIA API từ frontend — mọi request phải qua backend.
+ */
+export const translateService = {
+  /** Dịch một đoạn nội dung đơn lẻ (tự động async nếu > 3000 chars) */
+  translate: async (req: TranslateRequest): Promise<APIResponse<TranslateResponse>> => {
+    const response = await api.post<APIResponse<TranslateResponse>>('/translate', req);
+    return response.data;
+  },
+
+  /** Luôn tạo async job bất kể độ dài content */
+  translateAsync: async (req: TranslateRequest): Promise<APIResponse<TranslateResponse>> => {
+    const response = await api.post<APIResponse<TranslateResponse>>('/translate/async', req);
+    return response.data;
+  },
+
+  /** Lấy trạng thái và kết quả của async job */
+  pollJob: async (jobId: string): Promise<APIResponse<AsyncJobResult>> => {
+    const response = await api.get<APIResponse<AsyncJobResult>>(`/translate/async/${jobId}`);
+    return response.data;
+  },
+
+  /** Dịch hàng loạt (batch), tối đa 20 items */
+  batch: async (items: TranslateRequest[]): Promise<APIResponse<BatchTranslateResponse>> => {
+    const response = await api.post<APIResponse<BatchTranslateResponse>>('/translate/batch', { items });
+    return response.data;
+  },
+};
+

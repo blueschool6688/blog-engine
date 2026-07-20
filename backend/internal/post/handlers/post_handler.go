@@ -104,7 +104,10 @@ func (h *PostHandler) Delete(c *fiber.Ctx) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := h.commandService.DeletePost(ctx, uint(id)); err != nil {
+
+	force := c.Query("force") == "true"
+
+	if err := h.commandService.DeletePost(ctx, uint(id), force); err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to delete post", err.Error())
 	}
 
@@ -114,6 +117,30 @@ func (h *PostHandler) Delete(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, nil, "Post deleted successfully")
+}
+
+func (h *PostHandler) Restore(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid post ID", err.Error())
+	}
+
+	ctx := c.UserContext()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if err := h.commandService.RestorePost(ctx, uint(id)); err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to restore post", err.Error())
+	}
+
+	if userID, ok := c.Locals("user_id").(uint); ok {
+		val := uint(id)
+		h.auditSvc.Log(&userID, "restore_post", "post", &val, nil, c.IP())
+	}
+
+	return response.Success(c, fiber.StatusOK, nil, "Post restored successfully")
 }
 
 func (h *PostHandler) Bulk(c *fiber.Ctx) error {
@@ -165,12 +192,13 @@ func (h *PostHandler) List(c *fiber.Ctx) error {
 	categoryID, _ := strconv.ParseUint(categoryIDStr, 10, 32)
 	tagID, _ := strconv.ParseUint(tagIDStr, 10, 32)
 	isFeatured, _ := strconv.ParseBool(isFeaturedStr)
+	withDeleted := c.Query("with_deleted") == "true"
 
 	ctx := c.UserContext()
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	res, err := h.queryService.ListPosts(ctx, offset, limit, status, search, uint(categoryID), uint(tagID), isFeatured)
+	res, err := h.queryService.ListPosts(ctx, offset, limit, status, search, uint(categoryID), uint(tagID), isFeatured, withDeleted)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to list posts", err.Error())
 	}

@@ -33,7 +33,8 @@ func (h *TagHandler) List(c *fiber.Ctx) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	tags, err := h.repo.FindAll(ctx)
+	withDeleted := c.Query("with_deleted") == "true"
+	tags, err := h.repo.FindAll(ctx, withDeleted)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to retrieve tags", err.Error())
 	}
@@ -91,11 +92,38 @@ func (h *TagHandler) Delete(c *fiber.Ctx) error {
 		ctx = context.Background()
 	}
 
-	if err := h.repo.Delete(ctx, uint(id)); err != nil {
+	force := c.Query("force") == "true"
+
+	if force {
+		err = h.repo.PermanentDelete(ctx, uint(id))
+	} else {
+		err = h.repo.Delete(ctx, uint(id))
+	}
+
+	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to delete tag", err.Error())
 	}
 
 	return response.Success(c, fiber.StatusOK, nil, "Tag deleted successfully")
+}
+
+func (h *TagHandler) Restore(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid tag ID", err.Error())
+	}
+
+	ctx := c.UserContext()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if err := h.repo.Restore(ctx, uint(id)); err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to restore tag", err.Error())
+	}
+
+	return response.Success(c, fiber.StatusOK, nil, "Tag restored successfully")
 }
 
 func generateSlug(title string) string {

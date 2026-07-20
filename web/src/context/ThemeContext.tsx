@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useRouteLoaderData } from 'react-router';
+import { setCookie } from '../utils/cookie';
 
 type Theme = 'light' | 'dark';
 
@@ -10,27 +12,28 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<Theme>('dark');
+  const rootData = useRouteLoaderData("root") as { theme: Theme; language: string } | null;
+  const [theme, setTheme] = useState<Theme>(() => rootData?.theme || 'dark');
 
   useEffect(() => {
-    const saved = localStorage.getItem('theme') as Theme | null;
-    if (saved === 'light' || saved === 'dark') {
-      setTheme(saved);
+    if (rootData?.theme) {
+      setTheme(rootData.theme);
     }
-  }, []);
-
-  useEffect(() => {
-    const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+  }, [rootData?.theme]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    setCookie('theme', nextTheme, 365);
+
+    if (typeof window !== 'undefined') {
+      const root = window.document.documentElement;
+      if (nextTheme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
   };
 
   return (

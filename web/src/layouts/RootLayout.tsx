@@ -6,13 +6,22 @@ import { LanguageProvider } from '../context/LanguageContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { settingsService } from '../services/api';
 import { ConfigProvider, theme } from 'antd';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 export const RootLayout: React.FC = () => {
   const [primaryColor, setPrimaryColor] = useState('#3b82f6');
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    // Detect dark mode changes from documentElement class
     setIsDark(document.documentElement.classList.contains('dark'));
     const observer = new MutationObserver(() => {
       setIsDark(document.documentElement.classList.contains('dark'));
@@ -46,25 +55,27 @@ export const RootLayout: React.FC = () => {
   }, []);
 
   return (
-    <ThemeProvider>
-      <ConfigProvider
-        theme={{
-          algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-          token: {
-            colorPrimary: primaryColor,
-            borderRadius: 12,
-          },
-        }}
-      >
-        <AuthProvider>
-          <LanguageProvider>
-            <ToastProvider>
-              <Outlet />
-            </ToastProvider>
-          </LanguageProvider>
-        </AuthProvider>
-      </ConfigProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <ConfigProvider
+          theme={{
+            algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+            token: {
+              colorPrimary: primaryColor,
+              borderRadius: 12,
+            },
+          }}
+        >
+          <AuthProvider>
+            <LanguageProvider>
+              <ToastProvider>
+                <Outlet />
+              </ToastProvider>
+            </LanguageProvider>
+          </AuthProvider>
+        </ConfigProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 };
 

@@ -25,8 +25,13 @@ type Config struct {
 	SMTPPass      string
 	SMTPFrom      string
 	AppURL        string
-	CFZoneID      string
-	CFAPIToken    string
+	CFZoneID           string
+	CFAPIToken         string
+	// NVIDIA NIM API cho tính năng dịch thuật AI
+	NVIDIAAPIKey       string
+	NVIDIAModel        string
+	// TranslateChunkSize: số ký tự tối đa mỗi chunk khi dịch nội dung dài
+	TranslateChunkSize int
 }
 
 func Load() *Config {
@@ -56,8 +61,11 @@ func Load() *Config {
 		SMTPPass:      getEnv("SMTP_PASS", ""),
 		SMTPFrom:      getEnv("SMTP_FROM", "noreply@example.com"),
 		AppURL:        getEnv("APP_URL", "http://localhost:5173"),
-		CFZoneID:      getEnv("CF_ZONE_ID", ""),
-		CFAPIToken:    getEnv("CF_API_TOKEN", ""),
+		CFZoneID:           getEnv("CF_ZONE_ID", ""),
+		CFAPIToken:         getEnv("CF_API_TOKEN", ""),
+		NVIDIAAPIKey:       getEnv("NVIDIA_API_KEY", ""),
+		NVIDIAModel:        getEnv("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct"),
+		TranslateChunkSize: getEnvInt("TRANSLATE_CHUNK_SIZE", 2000),
 	}
 }
 

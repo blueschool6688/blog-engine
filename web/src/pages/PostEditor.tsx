@@ -1,93 +1,51 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as zod from 'zod';
-import { ArrowLeft, Save, Loader, Image as ImageIcon, X, Trash } from 'lucide-react';
+import { ArrowLeft, Save, Image as ImageIcon, Trash, FileText } from 'lucide-react';
 import { postService, mediaService, categoryService, tagService, getFullUrl } from '../services/api';
 import type { Media, Category, Tag } from '../services/api';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { GalleryUploader } from '../components/GalleryUploader';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
+import { Form, Input, Button, Select, Switch, DatePicker, Collapse, Card, Spin, Modal, Tabs } from 'antd';
+import dayjs from 'dayjs';
 
 export async function loader() {
   return null;
 }
 
-const stripHtml = (html?: string) => {
-  if (!html) return '';
-  return html.replace(/<[^>]*>/g, '').trim();
-};
-
-const postSchema = zod.object({
-  title: zod.string().min(1, 'Title is required').max(255, 'Title is too long'),
-  slug: zod.string().max(255, 'Slug is too long').optional(),
-  content: zod.string().optional(),
-  status: zod.enum(['draft', 'published']),
-  cover_media_id: zod.number().optional().nullable(),
-  meta_title: zod.string().max(255, 'Meta title is too long').optional().default(''),
-  meta_desc: zod.string().optional().default(''),
-  excerpt: zod.string().optional().default(''),
-  is_featured: zod.boolean().optional().default(false),
-  published_at: zod.string().optional().nullable().default(''),
-});
-
-type PostFormValues = zod.infer<typeof postSchema>;
-
 export const PostEditor: React.FC = () => {
-  const { t } = useLanguage();
+  useLanguage();
   const { id } = useParams<{ id?: string }>();
   const isEdit = !!id;
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
+
+  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
-  const [showMediaModal, setShowMediaModal] = useState(false);
-  const [mediaList, setMediaList] = useState<Media[]>([]);
-  const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
 
-  // Categories & Tags state
+  // Media Pickers States
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [mediaTarget, setMediaTarget] = useState<'cover' | 'pdf' | null>(null);
+  const [mediaList, setMediaList] = useState<Media[]>([]);
+  const [selectedCover, setSelectedCover] = useState<Media | null>(null);
+  const [selectedPDF, setSelectedPDF] = useState<Media | null>(null);
+
+  // Option lists
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
-  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
-  const [tagInput, setTagInput] = useState('');
-  const [tagSuggestions, setTagSuggestions] = useState<Tag[]>([]);
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<any>({
-    resolver: zodResolver(postSchema),
-    defaultValues: {
-      title: '',
-      slug: '',
-      content: '',
-      status: 'draft',
-      cover_media_id: null,
-      meta_title: '',
-      meta_desc: '',
-      excerpt: '',
-      is_featured: false,
-      published_at: '',
-    },
-  });
+  // Watchers for custom rendering (SEO Google preview, etc.)
+  const [titleVal, setTitleVal] = useState('');
+  const [slugVal, setSlugVal] = useState('');
+  const [excerptVal, setExcerptVal] = useState('');
+  const [metaTitleVal, setMetaTitleVal] = useState('');
+  const [metaDescVal, setMetaDescVal] = useState('');
+  const [isDocVal, setIsDocVal] = useState(false);
 
-  const watchCoverMediaId = watch('cover_media_id');
-  const contentValue = watch('content') || '';
-  const watchTitle = watch('title') || '';
-  const watchSlug = watch('slug') || '';
-  const watchMetaTitle = watch('meta_title') || '';
-  const watchMetaDesc = watch('meta_desc') || '';
-  const watchExcerpt = watch('excerpt') || '';
-  const watchContent = watch('content') || '';
-  const [seoOpen, setSeoOpen] = useState(false);
-
-  // Load categories and tags lists
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchOptions = async () => {
       try {
         const [catRes, tagRes] = await Promise.all([
           categoryService.list(),
@@ -96,13 +54,12 @@ export const PostEditor: React.FC = () => {
         setAllCategories(catRes.data || []);
         setAllTags(tagRes.data || []);
       } catch (err) {
-        console.error('Failed to load categories/tags lists', err);
+        console.error('Failed to load filters options', err);
       }
     };
-    fetchData();
+    fetchOptions();
   }, []);
 
-  // Load post details if editing
   useEffect(() => {
     if (isEdit) {
       const loadPost = async () => {
@@ -110,35 +67,40 @@ export const PostEditor: React.FC = () => {
         try {
           const res = await postService.detail(Number(id));
           const post = res.data;
-          setValue('title', post.title);
-          setValue('slug', post.slug);
-          setValue('content', post.content);
-          setValue('status', post.status);
-          setValue('cover_media_id', post.cover_media_id || null);
-          setValue('meta_title', post.meta_title || '');
-          setValue('meta_desc', post.meta_desc || '');
-          setValue('excerpt', post.excerpt || '');
-          setValue('is_featured', post.is_featured || false);
-          if (post.published_at) {
-            const dateObj = new Date(post.published_at);
-            const tzOffset = dateObj.getTimezoneOffset() * 60000;
-            const localISOTime = (new Date(dateObj.getTime() - tzOffset)).toISOString().slice(0, 16);
-            setValue('published_at', localISOTime);
-          } else {
-            setValue('published_at', '');
-          }
-          if (post.cover_media) {
-            setSelectedMedia(post.cover_media);
-          }
-          if (post.categories) {
-            setSelectedCategoryIds(post.categories.map((c) => c.id));
-          }
-          if (post.tags) {
-            setSelectedTagIds(post.tags.map((t) => t.id));
-          }
+          form.setFieldsValue({
+            title: post.title,
+            title_en: post.title_en || '',
+            slug: post.slug,
+            slug_en: post.slug_en || '',
+            excerpt: post.excerpt || '',
+            excerpt_en: post.excerpt_en || '',
+            content: post.content || '',
+            content_en: post.content_en || '',
+            status: post.status,
+            cover_media_id: post.cover_media_id || undefined,
+            is_featured: post.is_featured || false,
+            is_document: post.is_document || false,
+            pdf_media_id: post.pdf_media_id || undefined,
+            meta_title: post.meta_title || '',
+            meta_desc: post.meta_desc || '',
+            published_at: post.published_at ? dayjs(post.published_at) : null,
+            category_ids: post.categories?.map(c => c.id) || [],
+            tag_ids: post.tags?.map(t => t.id) || [],
+          });
+
+          // Sync local state for previews
+          setTitleVal(post.title || '');
+          setSlugVal(post.slug || '');
+          setExcerptVal(post.excerpt || '');
+          setMetaTitleVal(post.meta_title || '');
+          setMetaDescVal(post.meta_desc || '');
+          setIsDocVal(post.is_document || false);
+
+          if (post.cover_media) setSelectedCover(post.cover_media);
+          if (post.pdf_media) setSelectedPDF(post.pdf_media);
         } catch (err) {
-          console.error('Failed to load post', err);
-          alert('Failed to load post details');
+          console.error(err);
+          showError('Failed to load post details.');
           navigate('/admin/posts');
         } finally {
           setFetching(false);
@@ -146,516 +108,491 @@ export const PostEditor: React.FC = () => {
       };
       loadPost();
     }
-  }, [id, isEdit, setValue, navigate]);
+  }, [id, isEdit, form, navigate]);
 
-  // Filter tags for autocomplete
-  useEffect(() => {
-    if (!tagInput.trim()) {
-      setTagSuggestions([]);
-      return;
-    }
-    const filtered = allTags.filter(
-      (t) =>
-        t.name.toLowerCase().includes(tagInput.toLowerCase()) &&
-        !selectedTagIds.includes(t.id)
-    );
-    setTagSuggestions(filtered);
-  }, [tagInput, allTags, selectedTagIds]);
-
-  const addTagById = (tagId: number) => {
-    if (!selectedTagIds.includes(tagId)) {
-      setSelectedTagIds([...selectedTagIds, tagId]);
-    }
-    setTagInput('');
-  };
-
-  const handleTagInputKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const value = tagInput.trim();
-      if (!value) return;
-
-      const existing = allTags.find((t) => t.name.toLowerCase() === value.toLowerCase());
-      if (existing) {
-        addTagById(existing.id);
-      } else {
-        try {
-          const res = await tagService.create({ name: value });
-          const newTag = res.data;
-          setAllTags([...allTags, newTag]);
-          setSelectedTagIds([...selectedTagIds, newTag.id]);
-          setTagInput('');
-        } catch (err) {
-          console.error('Failed to quick-create tag', err);
-        }
-      }
-    }
-  };
-
-  const removeTagById = (tagId: number) => {
-    setSelectedTagIds(selectedTagIds.filter((id) => id !== tagId));
-  };
-
-  const openMediaModal = async () => {
-    setShowMediaModal(true);
+  const loadMedia = async () => {
     try {
-      const res = await mediaService.list();
-      setMediaList((res.data || []).filter((m) => m.status === 'completed'));
+      const res = await mediaService.list({ limit: 100 });
+      setMediaList(res.data?.items || res.data || []);
     } catch (err) {
-      console.error('Failed to load media list', err);
+      console.error(err);
     }
   };
 
-  const selectMedia = (media: Media) => {
-    setSelectedMedia(media);
-    setValue('cover_media_id', media.id);
+  const openMediaPicker = (target: 'cover' | 'pdf') => {
+    setMediaTarget(target);
+    loadMedia();
+    setShowMediaModal(true);
+  };
+
+  const handleSelectMedia = (media: Media) => {
+    if (mediaTarget === 'cover') {
+      setSelectedCover(media);
+      form.setFieldsValue({ cover_media_id: media.id });
+    } else if (mediaTarget === 'pdf') {
+      setSelectedPDF(media);
+      form.setFieldsValue({ pdf_media_id: media.id });
+    }
     setShowMediaModal(false);
+    setMediaTarget(null);
   };
 
-  const removeCoverImage = () => {
-    setSelectedMedia(null);
-    setValue('cover_media_id', null);
+  const removeMedia = (target: 'cover' | 'pdf') => {
+    if (target === 'cover') {
+      setSelectedCover(null);
+      form.setFieldsValue({ cover_media_id: undefined });
+    } else if (target === 'pdf') {
+      setSelectedPDF(null);
+      form.setFieldsValue({ pdf_media_id: undefined });
+    }
   };
 
-  const onSubmit = async (values: PostFormValues) => {
+  const onFinish = async (values: any) => {
     setLoading(true);
+    const payload = {
+      ...values,
+      published_at: values.published_at ? values.published_at.toISOString() : null,
+      cover_media_id: values.cover_media_id || null,
+      pdf_media_id: values.pdf_media_id || null,
+    };
+
     try {
-      const payload = {
-        ...values,
-        published_at: values.published_at ? new Date(values.published_at).toISOString() : null,
-        category_ids: selectedCategoryIds,
-        tag_ids: selectedTagIds,
-      };
       if (isEdit) {
         await postService.update(Number(id), payload);
+        showSuccess('Post updated successfully.');
       } else {
         await postService.create(payload);
+        showSuccess('Post created successfully.');
       }
       navigate('/admin/posts');
-    } catch (err) {
-      console.error('Failed to save post', err);
-      alert('Failed to save post');
+    } catch (err: any) {
+      console.error(err);
+      showError(err.response?.data?.message || 'Failed to save post.');
     } finally {
       setLoading(false);
     }
   };
 
+
+
   if (fetching) {
     return (
-      <div className="p-12 text-center">
-        <div className="w-8 h-8 border-4 border-accentBlue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-sm text-gray-500 font-sans">Loading post details...</p>
+      <div className="flex h-64 items-center justify-center">
+        <Spin size="large" tip="Loading post details..." />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Top Breadcrumb Header */}
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-5 select-none">
         <div className="flex items-center space-x-3">
           <Link
             to="/admin/posts"
-            className="p-2.5 bg-slate-800 hover:bg-slate-700/80 border border-slate-700/50 rounded-xl text-gray-400 hover:text-gray-200 transition-all"
+            className="p-2 rounded-lg bg-slate-900/60 hover:bg-slate-950 text-gray-400 hover:text-white border border-slate-800 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <h2 className="text-xl font-bold text-slate-850 dark:text-gray-100">
-              {isEdit ? t('editor_edit_title') : t('editor_create_title')}
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {isEdit ? 'Update details of your post.' : 'Write a new article.'}
-            </p>
+            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+              {isEdit ? 'Chỉnh sửa bài viết' : 'Tạo bài viết mới'}
+            </h1>
+            <p className="text-xs text-gray-500 mt-1">Viết, tối ưu hóa SEO và quản lý các loại bài đăng.</p>
           </div>
         </div>
-        <button
-          onClick={handleSubmit(onSubmit)}
-          disabled={loading}
-          className="flex items-center space-x-2 bg-gradient-to-r from-accentBlue to-accentPurple hover:brightness-110 disabled:opacity-55 text-white font-medium px-5 py-3 rounded-xl transition-all shadow-md shadow-accentBlue/10"
-        >
-          {loading ? (
-            <Loader className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          <span>{loading ? t('loading') : t('editor_save')}</span>
-        </button>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass-panel border border-slate-800/50 rounded-2xl p-6 space-y-5">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
-                {t('editor_title_label')}
-              </label>
-              <input
-                type="text"
-                {...register('title')}
-                placeholder={t('editor_title_placeholder')}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-650 rounded-xl py-3 px-4 outline-none transition-all"
-              />
-              {errors.title?.message && (
-                <p className="text-xs text-dangerRed mt-1">{String(errors.title.message)}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
-                {t('editor_slug_label')}
-              </label>
-              <input
-                type="text"
-                {...register('slug')}
-                placeholder="custom-slug-here"
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-650 rounded-xl py-3 px-4 outline-none transition-all font-mono text-sm"
-              />
-              <p className="text-[10px] text-gray-500">
-                Leave empty to automatically generate from the title.
-              </p>
-              {errors.slug?.message && (
-                <p className="text-xs text-dangerRed mt-1">{String(errors.slug.message)}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
-                {t('editor_content_label')}
-              </label>
-              <RichTextEditor
-                value={contentValue}
-                onChange={(val) => setValue('content', val, { shouldDirty: true })}
-              />
-            </div>
-          </div>
-
-          {/* SEO & Publishing Settings */}
-          <div className="glass-panel border border-slate-800/50 rounded-2xl overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setSeoOpen(!seoOpen)}
-              className="w-full flex items-center justify-between p-6 text-left border-b border-slate-800/30 bg-slate-900/10 hover:bg-slate-900/30 transition-colors"
-            >
-              <div>
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200">SEO & Publishing Settings</h3>
-                <p className="text-xs text-gray-500 font-sans mt-0.5">Configure search appearances and publication schedules.</p>
-              </div>
-              <span className="text-gray-400 font-medium text-xs">{seoOpen ? 'Hide' : 'Show'}</span>
-            </button>
-
-            {seoOpen && (
-              <div className="p-6 space-y-6">
-                {/* Excerpt */}
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t('editor_excerpt_label')}
-                  </label>
-                  <textarea
-                    {...register('excerpt')}
-                    rows={3}
-                    placeholder={t('editor_excerpt_placeholder')}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-650 rounded-xl py-3 px-4 outline-none transition-all text-sm resize-none"
-                  />
-                  <p className="text-[10px] text-gray-500">
-                    A brief description of your post used in lists and search results.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Meta Title */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
-                        SEO Meta Title
-                      </label>
-                      <span className={`text-[10px] ${(watchMetaTitle || '').length > 60 ? 'text-amber-500' : 'text-gray-500'}`}>
-                        {(watchMetaTitle || '').length} / 60 chars
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      {...register('meta_title')}
-                      placeholder="SEO Meta Title..."
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-650 rounded-xl py-3 px-4 outline-none transition-all text-sm"
-                    />
-                  </div>
-
-                  {/* Meta Description */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
-                        SEO Meta Description
-                      </label>
-                      <span className={`text-[10px] ${(watchMetaDesc || '').length > 160 ? 'text-amber-500' : 'text-gray-500'}`}>
-                        {(watchMetaDesc || '').length} / 160 chars
-                      </span>
-                    </div>
-                    <textarea
-                      {...register('meta_desc')}
-                      rows={2}
-                      placeholder="SEO Meta Description..."
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-650 rounded-xl py-3 px-4 outline-none transition-all text-sm resize-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Published At */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
-                      Publish Date & Time (Schedule)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      {...register('published_at')}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-100 rounded-xl py-3 px-4 outline-none transition-all text-sm"
-                    />
-                    <p className="text-[10px] text-gray-500">
-                      Set a future date to schedule publication, or leave blank to publish immediately.
-                    </p>
-                  </div>
-
-                  {/* Is Featured Toggle */}
-                  <div className="flex items-center space-x-3 h-full md:pt-6">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        {...register('is_featured')}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-300 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accentBlue"></div>
-                      <span className="ml-3 text-sm font-semibold text-slate-700 dark:text-gray-300">Mark as Featured Post</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Google Search Preview */}
-                <div className="space-y-3 pt-4 border-t border-slate-800/40">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider block">
-                    Google Search Preview
-                  </label>
-                  <div className="bg-white text-black p-5 rounded-xl border border-gray-200 shadow-sm max-w-2xl font-sans">
-                    <div className="text-[14px] text-gray-600 mb-1 flex items-center space-x-1 truncate">
-                      <span>https://yourblog.com</span>
-                      <span className="text-gray-400">&rsaquo;</span>
-                      <span>posts</span>
-                      <span className="text-gray-400">&rsaquo;</span>
-                      <span className="text-gray-500 truncate">{watchSlug || watchTitle || 'post-slug'}</span>
-                    </div>
-                    <div className="text-[20px] text-[#1a0dab] hover:underline cursor-pointer font-medium leading-tight truncate mb-1">
-                      {watchMetaTitle || watchTitle || 'Post Title'}
-                    </div>
-                    <div className="text-[14px] text-[#4d5156] leading-relaxed break-words font-sans">
-                      {watchMetaDesc || watchExcerpt || stripHtml(watchContent) || 'Please enter a meta description or excerpt to preview search snippet here...'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {isEdit && (
-            <GalleryUploader postId={Number(id)} />
-          )}
-        </div>
-
-        <div className="space-y-6">
-          {/* Status */}
-          <div className="glass-panel border border-slate-800/50 rounded-2xl p-6 space-y-4">
-            <h3 className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Publish Status</h3>
-            <select
-              {...register('status')}
-              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-100 rounded-xl py-3 px-4 outline-none transition-all"
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
-          </div>
-
-          {/* Categories */}
-          <div className="glass-panel border border-slate-800/50 rounded-2xl p-6 space-y-4">
-            <h3 className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Categories</h3>
-            {allCategories.length === 0 ? (
-              <p className="text-xs text-gray-500">No categories found.</p>
-            ) : (
-              <div className="space-y-2.5 max-h-[200px] overflow-y-auto pr-1">
-                {allCategories.map((cat) => {
-                  const isChecked = selectedCategoryIds.includes(cat.id);
-                  return (
-                    <label key={cat.id} className="flex items-center space-x-3 cursor-pointer text-sm text-slate-700 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          if (isChecked) {
-                            setSelectedCategoryIds(selectedCategoryIds.filter((id) => id !== cat.id));
-                          } else {
-                            setSelectedCategoryIds([...selectedCategoryIds, cat.id]);
-                          }
-                        }}
-                        className="rounded border-slate-800 bg-slate-950 text-accentBlue focus:ring-accentBlue/40 focus:ring-offset-0 focus:ring-1"
-                      />
-                      <span className="font-sans">{cat.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Tags */}
-          <div className="glass-panel border border-slate-800/50 rounded-2xl p-6 space-y-4">
-            <h3 className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Tags</h3>
-
-            {selectedTagIds.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {selectedTagIds.map((id) => {
-                  const tag = allTags.find((t) => t.id === id);
-                  if (!tag) return null;
-                  return (
-                    <span
-                      key={id}
-                      className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/50 text-slate-750 dark:text-gray-300 text-xs px-2.5 py-1 rounded-xl"
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={onFinish}
+        requiredMark={false}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Form Fields (Left) */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
+              <Tabs defaultActiveKey="vi" className="border-b border-slate-200 dark:border-slate-800/60 mb-4">
+                <Tabs.TabPane tab="Tiếng Việt (Bản dịch chính)" key="vi">
+                  <div className="space-y-4 pt-2">
+                    <Form.Item
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tiêu đề bài viết (VI)</span>}
+                      name="title"
+                      rules={[{ required: true, message: 'Please input Vietnamese title!' }]}
                     >
-                      <span>{tag.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeTagById(id)}
-                        className="hover:text-dangerRed transition-colors pl-1"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
+                      <Input
+                        placeholder="Nhập tiêu đề tiếng Việt..."
+                        className="h-10 rounded-xl"
+                        onChange={(e) => setTitleVal(e.target.value)}
+                      />
+                    </Form.Item>
+
+                    <Form.Item
+                      label={
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Đường dẫn Slug VI</span>
+                          <span className="text-[10px] text-gray-500 font-normal">Tự động tạo từ tiêu đề nếu để trống</span>
+                        </div>
+                      }
+                      name="slug"
+                    >
+                      <Input
+                        placeholder="e.g. kien-truc-microservices"
+                        className="h-10 rounded-xl font-mono text-sm"
+                        onChange={(e) => setSlugVal(e.target.value)}
+                      />
+                    </Form.Item>
+
+                    <Form.Item
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tóm tắt ngắn (VI)</span>}
+                      name="excerpt"
+                    >
+                      <Input.TextArea
+                        rows={2}
+                        placeholder="Tóm tắt ngắn hiển thị tại trang chủ..."
+                        className="rounded-xl resize-none text-sm"
+                        onChange={(e) => setExcerptVal(e.target.value)}
+                      />
+                    </Form.Item>
+
+                    <Form.Item
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nội dung bài viết (VI)</span>}
+                      name="content"
+                    >
+                      <RichTextEditor
+                        value={form.getFieldValue('content') || ''}
+                        onChange={(val) => form.setFieldsValue({ content: val })}
+                      />
+                    </Form.Item>
+                  </div>
+                </Tabs.TabPane>
+
+                <Tabs.TabPane tab="English (Translation)" key="en">
+                  <div className="space-y-4 pt-2">
+                    <Form.Item
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Article Title (EN)</span>}
+                      name="title_en"
+                    >
+                      <Input placeholder="Enter English title..." className="h-10 rounded-xl" />
+                    </Form.Item>
+
+                    <Form.Item
+                      label={
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slug EN</span>
+                          <span className="text-[10px] text-gray-500 font-normal">Auto-generated from EN title if left empty</span>
+                        </div>
+                      }
+                      name="slug_en"
+                    >
+                      <Input placeholder="e.g. microservices-architecture" className="h-10 rounded-xl font-mono text-sm" />
+                    </Form.Item>
+
+                    <Form.Item
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Short Excerpt (EN)</span>}
+                      name="excerpt_en"
+                    >
+                      <Input.TextArea
+                        rows={2}
+                        placeholder="English summary..."
+                        className="rounded-xl resize-none text-sm"
+                      />
+                    </Form.Item>
+
+                    <Form.Item
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Article Content (EN)</span>}
+                      name="content_en"
+                    >
+                      <RichTextEditor
+                        value={form.getFieldValue('content_en') || ''}
+                        onChange={(val) => form.setFieldsValue({ content_en: val })}
+                      />
+                    </Form.Item>
+                  </div>
+                </Tabs.TabPane>
+              </Tabs>
+            </Card>
+
+            {/* Gallery Section */}
+            {isEdit && (
+              <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Post Gallery Images</h3>
+                <GalleryUploader postId={Number(id)} />
+              </Card>
             )}
 
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Type tag and press Enter..."
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagInputKeyDown}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-650 rounded-xl py-3 px-4 outline-none transition-all text-sm"
-              />
-
-              {tagSuggestions.length > 0 && (
-                <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/90 rounded-xl shadow-2xl overflow-hidden z-50 max-h-[150px] overflow-y-auto">
-                  {tagSuggestions.map((tag) => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => addTagById(tag.id)}
-                      className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm text-slate-750 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100 transition-colors"
-                    >
-                      {tag.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="glass-panel border border-slate-800/50 rounded-2xl p-6 space-y-4">
-            <h3 className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Cover Image</h3>
-
-            {selectedMedia ? (
-              <div className="space-y-3">
-                <div className="aspect-video w-full rounded-xl bg-slate-950 border border-slate-200 dark:border-slate-800 overflow-hidden relative group">
-                  <img
-                    src={getFullUrl(selectedMedia.url)}
-                    alt=""
-                    className="object-cover w-full h-full"
-                  />
-                  <button
-                    type="button"
-                    onClick={removeCoverImage}
-                    className="absolute top-2 right-2 p-1.5 bg-dangerRed/80 hover:bg-dangerRed text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    title="Remove image"
+            {/* SEO Panel */}
+            <Collapse ghost expandIconPosition="end">
+              <Collapse.Panel
+                header={<span className="text-xs font-black text-slate-700 dark:text-gray-400 uppercase tracking-wider select-none">SEO Metadata Config</span>}
+                key="seo"
+                className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 mb-4 px-2"
+              >
+                <div className="space-y-4 pt-3 select-none">
+                  <Form.Item
+                    label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Meta Title</span>}
+                    name="meta_title"
                   >
-                    <Trash className="w-4 h-4" />
-                  </button>
+                    <Input
+                      placeholder="Title for Google search..."
+                      className="h-10 rounded-xl"
+                      onChange={(e) => setMetaTitleVal(e.target.value)}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Meta Description</span>}
+                    name="meta_desc"
+                  >
+                    <Input.TextArea
+                      rows={3}
+                      placeholder="Description snippet for Google search..."
+                      className="rounded-xl resize-none text-sm"
+                      onChange={(e) => setMetaDescVal(e.target.value)}
+                    />
+                  </Form.Item>
+
+                  {/* Google Preview Widget */}
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50 dark:bg-slate-950/40">
+                    <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black block mb-2">Google Preview Mockup</span>
+                    <div className="space-y-1">
+                      <span className="text-blue-500 dark:text-blue-400 text-sm font-semibold hover:underline block truncate">
+                        {metaTitleVal || titleVal || 'Google Search Display Title'}
+                      </span>
+                      <span className="text-green-600 dark:text-green-500 text-xs block truncate">
+                        https://blog.engine/posts/{slugVal || 'example-slug'}
+                      </span>
+                      <span className="text-gray-500 text-xs block leading-relaxed line-clamp-2">
+                        {metaDescVal || excerptVal || 'This snippet will appear under the title in search engine results. Enter meta description to optimize it.'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={openMediaModal}
-                  className="w-full text-center text-xs font-semibold text-accentBlue hover:underline"
-                >
-                  Change Cover Image
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={openMediaModal}
-                className="w-full aspect-video rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900/60 dark:hover:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 hover:border-accentBlue/40 flex flex-col items-center justify-center p-4 transition-all group"
-              >
-                <ImageIcon className="w-8 h-8 text-slate-500 dark:text-gray-600 group-hover:text-accentBlue/70 transition-colors mb-2" />
-                <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700 dark:text-gray-500 dark:group-hover:text-gray-300">
-                  Select Cover Image
-                </span>
-              </button>
-            )}
+              </Collapse.Panel>
+            </Collapse>
           </div>
-        </div>
-      </form>
 
-      {showMediaModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="glass-panel border border-slate-800/80 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800/50 flex justify-between items-center bg-slate-100/30 dark:bg-slate-900/20">
-              <div>
-                <h3 className="font-bold text-lg text-slate-850 dark:text-gray-100">Select Cover Media</h3>
-                <p className="text-xs text-gray-500 font-sans">Pick an image from the library to set as post cover.</p>
+          {/* Config Sidebar (Right) */}
+          <div className="space-y-6 select-none">
+            {/* Status & Featured Card */}
+            <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Publish Settings</h3>
+              
+              <div className="space-y-4">
+                <Form.Item
+                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Publish Status</span>}
+                  name="status"
+                >
+                  <Select
+                    options={[
+                      { label: 'Published (Công khai)', value: 'published' },
+                      { label: 'Draft (Bản nháp)', value: 'draft' }
+                    ]}
+                    className="h-10 rounded-xl"
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Publish Date & Time (Schedule)</span>}
+                  name="published_at"
+                >
+                  <DatePicker showTime className="w-full h-10 rounded-xl" />
+                </Form.Item>
+
+                <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-4">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-800 dark:text-gray-200">Featured Article</span>
+                    <span className="text-[10px] text-gray-500 font-normal">Show on the main landing slider</span>
+                  </div>
+                  <Form.Item name="is_featured" valuePropName="checked" className="mb-0">
+                    <Switch />
+                  </Form.Item>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-4">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-800 dark:text-gray-200">Is PDF Document Post</span>
+                    <span className="text-[10px] text-gray-500 font-normal">Attach a PDF file as document</span>
+                  </div>
+                  <Form.Item name="is_document" valuePropName="checked" className="mb-0">
+                    <Switch onChange={setIsDocVal} />
+                  </Form.Item>
+                </div>
+
+                {isDocVal && (
+                  <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2 animate-fade-in">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Attached PDF File</span>
+                    <Form.Item name="pdf_media_id" className="hidden"><Input /></Form.Item>
+                    
+                    {selectedPDF ? (
+                      <div className="flex items-center justify-between bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl">
+                        <div className="flex items-center gap-2 text-red-500 truncate mr-2">
+                          <FileText className="w-4 h-4 shrink-0" />
+                          <span className="text-xs truncate font-bold">{selectedPDF.file_name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeMedia('pdf')}
+                          className="text-red-500 hover:text-red-750 p-1 hover:bg-red-500/10 rounded"
+                        >
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="dashed"
+                        onClick={() => openMediaPicker('pdf')}
+                        className="w-full h-12 flex items-center justify-center gap-1.5 border-dashed border-red-500/35 hover:border-red-500 text-red-500 font-bold rounded-xl"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Select PDF File
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setShowMediaModal(false)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/35 dark:hover:border-slate-700 rounded-lg text-slate-500 hover:text-slate-800 dark:text-gray-400 dark:hover:text-gray-200 transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            </Card>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              {mediaList.length === 0 ? (
-                <div className="text-center py-12">
-                  <ImageIcon className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-                  <p className="text-sm text-gray-500 font-sans">No processed media files available.</p>
-                  <Link to="/admin/media" onClick={() => setShowMediaModal(false)} className="text-accentBlue hover:underline text-xs mt-2 inline-block">
-                    Go upload media files first
-                  </Link>
+            {/* Cover Image Picker */}
+            <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Cover Image</h3>
+              <Form.Item name="cover_media_id" className="hidden"><Input /></Form.Item>
+
+              {selectedCover ? (
+                <div className="space-y-2">
+                  <div className="w-full aspect-[16/10] rounded-xl overflow-hidden bg-slate-950 border border-slate-800 relative group">
+                    <img
+                      src={getFullUrl(selectedCover.url)}
+                      alt="Cover preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Button
+                        type="text"
+                        danger
+                        icon={<Trash className="w-4 h-4" />}
+                        onClick={() => removeMedia('cover')}
+                        className="bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/30 rounded-xl"
+                      >
+                        Remove Cover
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
-                  {mediaList.map((media) => (
-                    <button
-                      key={media.id}
-                      type="button"
-                      onClick={() => selectMedia(media)}
-                      className={`aspect-square rounded-xl bg-slate-950 border overflow-hidden relative hover:scale-105 transition-all flex items-center justify-center group ${watchCoverMediaId === media.id
-                        ? 'border-accentBlue ring-2 ring-accentBlue/25'
-                        : 'border-slate-800 hover:border-slate-700'
-                        }`}
-                    >
-                      <img
-                        src={getFullUrl(media.thumbnail_url || media.url)}
-                        alt=""
-                        className="object-cover w-full h-full"
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-semibold text-white">
-                        Choose
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <Button
+                  type="dashed"
+                  onClick={() => openMediaPicker('cover')}
+                  className="w-full aspect-[16/10] flex flex-col items-center justify-center gap-2 border-dashed border-slate-700/60 text-gray-400 hover:text-white rounded-xl"
+                >
+                  <ImageIcon className="w-6 h-6 text-gray-500" />
+                  <span className="text-xs font-bold">Pick Cover Image</span>
+                </Button>
               )}
-            </div>
+            </Card>
+
+            {/* Categories & Tags Select */}
+            <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Taxonomy</h3>
+              <div className="space-y-4">
+                <Form.Item
+                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Categories</span>}
+                  name="category_ids"
+                >
+                  <Select
+                    mode="multiple"
+                    placeholder="Select Categories"
+                    options={allCategories.map(c => ({ value: c.id, label: c.name }))}
+                    className="w-full rounded-xl"
+                    popupClassName="dark:bg-slate-900 border dark:border-slate-850"
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tags</span>}
+                  name="tag_ids"
+                >
+                  <Select
+                    mode="multiple"
+                    placeholder="Select or Create Tags"
+                    options={allTags.map(t => ({ value: t.id, label: t.name }))}
+                    onSearch={() => {}}
+                    className="w-full rounded-xl"
+                    popupClassName="dark:bg-slate-900 border dark:border-slate-850"
+                    onDeselect={() => {}}
+                    onSelect={() => {}}
+                    // Enable tags creation
+                    dropdownRender={(menu) => (
+                      <div>
+                        {menu}
+                        <div className="border-t border-slate-200 dark:border-slate-800/60 p-2 flex items-center justify-between">
+                          <span className="text-[10px] text-gray-500">Type in tag search input to create tags directly</span>
+                        </div>
+                      </div>
+                    )}
+                  />
+                </Form.Item>
+              </div>
+            </Card>
+
+            {/* Form Save Button */}
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              icon={<Save className="w-4 h-4" />}
+              className="w-full bg-btn-global hover:brightness-110 border-0 h-11 rounded-xl font-bold flex items-center justify-center gap-1.5 text-white shadow-lg shadow-accentBlue/10"
+            >
+              {isEdit ? 'Save Changes' : 'Publish Article'}
+            </Button>
           </div>
         </div>
-      )}
+      </Form>
+
+      {/* Media Picker Modal */}
+      <Modal
+        title={<span className="font-extrabold text-slate-800 dark:text-white select-none">Select Media Item</span>}
+        open={showMediaModal}
+        onCancel={() => {
+          setShowMediaModal(false);
+          setMediaTarget(null);
+        }}
+        footer={null}
+        width={750}
+        className="select-none"
+      >
+        <div className="py-4 select-none">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[420px] overflow-y-auto pr-1">
+            {mediaList.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-gray-500 font-medium text-xs">No media uploads found in library.</div>
+            ) : (
+              mediaList
+                .filter(m => mediaTarget === 'pdf' ? m.mime_type === 'application/pdf' : m.type === 'image')
+                .map((m) => (
+                  <div
+                    key={m.id}
+                    onClick={() => handleSelectMedia(m)}
+                    className="aspect-[1:1] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 cursor-pointer hover:border-accentBlue transition-colors flex items-center justify-center p-1 group"
+                  >
+                    {m.mime_type === 'application/pdf' ? (
+                      <div className="flex flex-col items-center justify-center text-red-500 gap-1.5 w-full h-full p-2">
+                        <FileText className="w-8 h-8 group-hover:scale-105 transition-transform" />
+                        <span className="text-[10px] text-gray-400 text-center truncate w-full font-bold">{m.file_name}</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={getFullUrl(m.thumbnail_url || m.url)}
+                        alt=""
+                        className="w-full h-full object-cover rounded-md group-hover:scale-102 transition-transform"
+                      />
+                    )}
+                  </div>
+                ))
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

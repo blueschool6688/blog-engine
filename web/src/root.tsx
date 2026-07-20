@@ -1,10 +1,34 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteLoaderData } from "react-router";
 import React from "react";
 import "./index.css";
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const list: Record<string, string> = {};
+  if (!cookieHeader) return list;
+  cookieHeader.split(";").forEach((cookie) => {
+    const parts = cookie.split("=");
+    const key = parts.shift()?.trim();
+    if (key) {
+      list[key] = decodeURIComponent(parts.join("="));
+    }
+  });
+  return list;
+}
+
+export async function loader({ request }: { request: Request }) {
+  const cookieHeader = request.headers.get("Cookie") || "";
+  const cookies = parseCookies(cookieHeader);
+  const theme = cookies.theme === "light" ? "light" : "dark";
+  const language = cookies.language === "en" ? "en" : "vi";
+  return { theme, language };
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const data = useRouteLoaderData("root") as { theme: string; language: string } | null;
+  const theme = data?.theme || "dark";
+  const language = data?.language || "vi";
+
   return (
-    <html lang="vi">
+    <html lang={language} className={theme}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

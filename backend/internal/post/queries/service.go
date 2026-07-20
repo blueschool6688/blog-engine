@@ -37,8 +37,12 @@ func (s *QueryService) GetPostByID(ctx context.Context, id uint) (*models.Post, 
 	return dbPost, nil
 }
 
-func (s *QueryService) ListPosts(ctx context.Context, offset, limit int, status string, search string, categoryID uint, tagID uint, isFeatured bool) (*ListPostsResponse, error) {
+func (s *QueryService) ListPosts(ctx context.Context, offset, limit int, status string, search string, categoryID uint, tagID uint, isFeatured bool, withDeleted bool) (*ListPostsResponse, error) {
 	tx := s.repo.DB.WithContext(ctx).Model(&models.Post{})
+
+	if withDeleted {
+		tx = tx.Unscoped()
+	}
 
 	if status != "" {
 		tx = tx.Where("posts.status = ?", status)
@@ -73,6 +77,7 @@ func (s *QueryService) ListPosts(ctx context.Context, offset, limit int, status 
 			return db.Order("post_media.sort_order ASC")
 		}).
 		Preload("Gallery.Media").
+		Preload("PDFMedia").
 		Offset(offset).Limit(limit).Order("posts.id desc").
 		Find(&posts).Error
 	if err != nil {

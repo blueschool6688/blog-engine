@@ -242,7 +242,7 @@ func (h *PublicHandler) ListCategories(c *fiber.Ctx) error {
 	// 	return response.Success(c, fiber.StatusOK, categories, "Categories retrieved successfully")
 	// }
 
-	dbCategories, err := h.categoryRepo.FindAll(ctx)
+	dbCategories, err := h.categoryRepo.FindAll(ctx, false)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to retrieve categories", err.Error())
 	}
@@ -265,7 +265,7 @@ func (h *PublicHandler) ListTags(c *fiber.Ctx) error {
 		return response.Success(c, fiber.StatusOK, tags, "Tags retrieved successfully")
 	}
 
-	dbTags, err := h.tagRepo.FindAll(ctx)
+	dbTags, err := h.tagRepo.FindAll(ctx, false)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to retrieve tags", err.Error())
 	}
@@ -459,12 +459,12 @@ func (h *PublicHandler) GetSitemap(c *fiber.Ctx) error {
 
 	siteURL := h.getSiteSetting(ctx, "site_url", "http://localhost:3000")
 
-	categories, err := h.categoryRepo.FindAll(ctx)
+	categories, err := h.categoryRepo.FindAll(ctx, false)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to fetch categories: " + err.Error())
 	}
 
-	tags, err := h.tagRepo.FindAll(ctx)
+	tags, err := h.tagRepo.FindAll(ctx, false)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to fetch tags: " + err.Error())
 	}

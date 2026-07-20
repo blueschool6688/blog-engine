@@ -61,6 +61,9 @@ import (
 	commentRepository "backend/internal/comment/repository"
 	commentService "backend/internal/comment/service"
 
+	// Translate Domain
+	translateDomain "backend/internal/translate"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
@@ -142,6 +145,13 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	commentSvc := commentService.NewCommentService(commentRepo, reactionRepo, db)
 	commentHandler := commentHandlers.NewCommentHandler(commentSvc, auditSvc)
 
+	// Khởi tạo Translate Domain (Phase 2: job store + configurable chunk size)
+	nvidiaClient := translateDomain.NewNVIDIAClient(cfg.NVIDIAAPIKey, cfg.NVIDIAModel)
+	translateCache := translateDomain.NewMemcachedTranslateCache(cacheStore)
+	translateJobStore := translateDomain.NewPostgresJobStore(db)
+	translateSvc := translateDomain.NewService(nvidiaClient, translateCache, log, cfg.TranslateChunkSize, translateJobStore)
+	translateHandler := translateDomain.NewHandler(translateSvc)
+
 	app := fiber.New(fiber.Config{
 		ErrorHandler: middleware.ErrorHandler,
 		BodyLimit:    50 * 1024 * 1024,
@@ -209,6 +219,25 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	api := app.Group("/api")
 	api.Get("/settings", settingsHandler.GetSettings)
 
+	// ── Translate routes (public, no JWT, separate rate limiter) ────────────
+	translateLimiter := limiter.New(limiter.Config{
+		Max:        30,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"message": "Translation rate limit exceeded. Please wait a moment.",
+			})
+		},
+	})
+	api.Post("/translate", translateLimiter, translateHandler.Translate)
+	api.Post("/translate/batch", translateLimiter, translateHandler.BatchTranslate)
+	api.Post("/translate/async", translateLimiter, translateHandler.TranslateAsync)
+	api.Get("/translate/async/:job_id", translateHandler.GetAsyncJob)
+
 	// ── Public auth routes (no JWT required) ─────────────────────────────────
 	api.Post("/auth/login", sensitiveLimiter, authHandler.Login)
 	api.Post("/auth/refresh", authHandler.Refresh)
@@ -252,6 +281,7 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	protected.Post("/categories", categoryHandler.Create)
 	protected.Put("/categories/:id", categoryHandler.Update)
 	protected.Delete("/categories/:id", categoryHandler.Delete)
+	protected.Post("/categories/:id/restore", categoryHandler.Restore)
 
 	// Media Routes
 	protected.Post("/media", sensitiveLimiter, mediaHandler.Upload)
@@ -263,6 +293,7 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	protected.Get("/tags", tagHandler.List)
 	protected.Post("/tags", tagHandler.Create)
 	protected.Delete("/tags/:id", tagHandler.Delete)
+	protected.Post("/tags/:id/restore", tagHandler.Restore)
 
 	// Comment Moderation (admin + editor) - REGISTER FIRST to avoid /posts/:id wildcard collision
 	protected.Get("/posts/comments/pending-count", commentHandler.PendingCount)
@@ -279,6 +310,7 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	// Post Routes (Parameterized/Wildcard routes last)
 	protected.Put("/posts/:id", postHandler.Update)
 	protected.Delete("/posts/:id", postHandler.Delete)
+	protected.Post("/posts/:id/restore", postHandler.Restore)
 	protected.Get("/posts/:id", postHandler.Detail)
 	protected.Post("/posts/:id/media", postHandler.AttachMedia)
 	protected.Put("/posts/:id/media/reorder", postHandler.ReorderGallery)

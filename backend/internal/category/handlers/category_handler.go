@@ -26,15 +26,23 @@ func NewCategoryHandler(repo *repository.CategoryRepository) *CategoryHandler {
 }
 
 type CreateCategoryRequest struct {
-	Name        string `json:"name" validate:"required"`
-	Slug        string `json:"slug"`
-	Description string `json:"description"`
+	Name          string `json:"name" validate:"required"`
+	NameEn        string `json:"name_en"`
+	Slug          string `json:"slug"`
+	SlugEn        string `json:"slug_en"`
+	Description   string `json:"description"`
+	DescriptionEn string `json:"description_en"`
+	ParentID      *uint  `json:"parent_id"`
 }
 
 type UpdateCategoryRequest struct {
-	Name        string `json:"name" validate:"required"`
-	Slug        string `json:"slug"`
-	Description string `json:"description"`
+	Name          string `json:"name" validate:"required"`
+	NameEn        string `json:"name_en"`
+	Slug          string `json:"slug"`
+	SlugEn        string `json:"slug_en"`
+	Description   string `json:"description"`
+	DescriptionEn string `json:"description_en"`
+	ParentID      *uint  `json:"parent_id"`
 }
 
 
@@ -43,7 +51,8 @@ func (h *CategoryHandler) List(c *fiber.Ctx) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	categories, err := h.repo.FindAll(ctx)
+	withDeleted := c.Query("with_deleted") == "true"
+	categories, err := h.repo.FindAll(ctx, withDeleted)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to retrieve categories", err.Error())
 	}
@@ -79,9 +88,13 @@ func (h *CategoryHandler) Create(c *fiber.Ctx) error {
 	}
 
 	category := &models.Category{
-		Name:        req.Name,
-		Slug:        slug,
-		Description: req.Description,
+		Name:          req.Name,
+		NameEn:        req.NameEn,
+		Slug:          slug,
+		SlugEn:        req.SlugEn,
+		Description:   req.Description,
+		DescriptionEn: req.DescriptionEn,
+		ParentID:      req.ParentID,
 	}
 
 	if err := h.repo.Insert(ctx, category); err != nil {
@@ -132,9 +145,17 @@ func (h *CategoryHandler) Update(c *fiber.Ctx) error {
 		}
 	}
 
+	if req.ParentID != nil && *req.ParentID == uint(id) {
+		return response.Error(c, fiber.StatusBadRequest, "Category cannot be its own parent", nil)
+	}
+
 	category.Name = req.Name
+	category.NameEn = req.NameEn
 	category.Slug = slug
+	category.SlugEn = req.SlugEn
 	category.Description = req.Description
+	category.DescriptionEn = req.DescriptionEn
+	category.ParentID = req.ParentID
 
 	if err := h.repo.Update(ctx, category); err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to update category", err.Error())
@@ -155,11 +176,38 @@ func (h *CategoryHandler) Delete(c *fiber.Ctx) error {
 		ctx = context.Background()
 	}
 
-	if err := h.repo.Delete(ctx, uint(id)); err != nil {
+	force := c.Query("force") == "true"
+
+	if force {
+		err = h.repo.PermanentDelete(ctx, uint(id))
+	} else {
+		err = h.repo.Delete(ctx, uint(id))
+	}
+
+	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to delete category", err.Error())
 	}
 
 	return response.Success(c, fiber.StatusOK, nil, "Category deleted successfully")
+}
+
+func (h *CategoryHandler) Restore(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid category ID", err.Error())
+	}
+
+	ctx := c.UserContext()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if err := h.repo.Restore(ctx, uint(id)); err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to restore category", err.Error())
+	}
+
+	return response.Success(c, fiber.StatusOK, nil, "Category restored successfully")
 }
 
 func generateSlug(title string) string {

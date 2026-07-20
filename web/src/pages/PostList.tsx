@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { Plus, Edit2, Trash2, Star, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Star, Search, RotateCcw, AlertTriangle, FileText } from 'lucide-react';
 import { postService, categoryService, tagService, getFullUrl } from '../services/api';
 import type { Post, Category, Tag } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Table, Button, Input, Select, Modal, Space, Tag as AntdTag, Tooltip } from 'antd';
+import { Table, Button, Input, Select, Modal, Space, Tag as AntdTag, Tooltip, Switch } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 export async function loader() {
@@ -20,6 +20,7 @@ export const PostList: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -36,6 +37,7 @@ export const PostList: React.FC = () => {
   // Selection & Modal states
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [deletePostId, setDeletePostId] = useState<number | null>(null);
+  const [isForceDelete, setIsForceDelete] = useState(false);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   // Fetch categories & tags for filters
@@ -74,7 +76,9 @@ export const PostList: React.FC = () => {
         statusFilter,
         debouncedSearchQuery,
         categoryFilter,
-        tagFilter
+        tagFilter,
+        undefined,
+        showDeleted
       );
       setPosts(response.data.items || []);
       setTotal(response.data.total || 0);
@@ -88,7 +92,7 @@ export const PostList: React.FC = () => {
 
   useEffect(() => {
     fetchPosts();
-  }, [currentPage, statusFilter, debouncedSearchQuery, categoryFilter, tagFilter]);
+  }, [currentPage, statusFilter, debouncedSearchQuery, categoryFilter, tagFilter, showDeleted]);
 
   // Bulk actions
   const handleBulkAction = async (action: 'publish' | 'draft' | 'delete') => {
@@ -97,8 +101,9 @@ export const PostList: React.FC = () => {
     try {
       const ids = selectedRowKeys.map(key => Number(key));
       if (action === 'delete') {
-        await Promise.all(ids.map(id => postService.delete(id)));
-        showSuccess('Selected posts deleted successfully');
+        // Bulk delete is always soft-delete in this simplified implementation
+        await Promise.all(ids.map(id => postService.delete(id, false)));
+        showSuccess('Selected posts soft-deleted successfully');
       } else {
         await Promise.all(ids.map(id => postService.update(id, { status: action === 'publish' ? 'published' : 'draft' })));
         showSuccess(`Selected posts status updated to ${action}`);
@@ -117,13 +122,24 @@ export const PostList: React.FC = () => {
   const handleDeleteConfirm = async () => {
     if (!deletePostId) return;
     try {
-      await postService.delete(deletePostId);
-      showSuccess(t('post_deleted_success') || 'Deleted post successfully');
+      await postService.delete(deletePostId, isForceDelete);
+      showSuccess(isForceDelete ? 'Post permanently deleted.' : 'Post soft-deleted successfully.');
       setDeletePostId(null);
       fetchPosts();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showError(t('post_deleted_error') || 'Failed to delete post');
+      showError(err.response?.data?.message || 'Failed to delete post');
+    }
+  };
+
+  const handleRestore = async (id: number) => {
+    try {
+      await postService.restore(id);
+      showSuccess('Post restored successfully.');
+      fetchPosts();
+    } catch (err: any) {
+      console.error(err);
+      showError(err.response?.data?.message || 'Failed to restore post');
     }
   };
 
@@ -172,16 +188,25 @@ export const PostList: React.FC = () => {
           <span className="font-bold text-slate-850 dark:text-gray-200 block text-[13.5px] hover:text-accentBlue transition-colors">
             <Link to={`/admin/posts/edit/${record.id}`}>{text}</Link>
           </span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             {record.is_featured && (
-              <AntdTag color="amber" className="flex items-center gap-1 border-0 uppercase font-black text-[9px] px-2 py-0.5 tracking-wide">
+              <AntdTag color="gold" className="flex items-center gap-1 border-0 uppercase font-black text-[9px] px-2 py-0.5 tracking-wide">
                 <Star className="w-2.5 h-2.5 fill-current" />
                 Featured
+              </AntdTag>
+            )}
+            {record.is_document && (
+              <AntdTag color="red" className="flex items-center gap-1 border-0 uppercase font-black text-[9px] px-2 py-0.5 tracking-wide">
+                <FileText className="w-2.5 h-2.5" />
+                PDF
               </AntdTag>
             )}
             <span className="text-[10px] text-gray-500 font-mono">
               views: {record.view_count || 0}
             </span>
+            {record.deleted_at && (
+              <AntdTag color="error" className="border-0 text-[9px] font-bold px-1.5 py-0">Deleted</AntdTag>
+            )}
           </div>
         </div>
       )
@@ -226,29 +251,61 @@ export const PostList: React.FC = () => {
     {
       title: t('table_actions'),
       key: 'actions',
-      width: 120,
+      width: 130,
       align: 'right',
-      render: (_: any, record: Post) => (
-        <Space size="middle">
-          <Tooltip title="Edit Post">
-            <Button
-              type="text"
-              icon={<Edit2 className="w-3.5 h-3.5" />}
-              onClick={() => navigate(`/admin/posts/edit/${record.id}`)}
-              className="bg-slate-800 hover:bg-slate-700/80 text-gray-300 flex items-center justify-center p-2 rounded-lg border border-slate-750"
-            />
-          </Tooltip>
-          <Tooltip title="Delete Post">
-            <Button
-              type="text"
-              danger
-              icon={<Trash2 className="w-3.5 h-3.5" />}
-              onClick={() => setDeletePostId(record.id)}
-              className="bg-dangerRed/10 hover:bg-dangerRed/20 text-dangerRed flex items-center justify-center p-2 rounded-lg border border-dangerRed/20"
-            />
-          </Tooltip>
-        </Space>
-      )
+      render: (_: any, record: Post) => {
+        if (record.deleted_at) {
+          return (
+            <Space size="small">
+              <Tooltip title="Restore Post">
+                <Button
+                  type="text"
+                  icon={<RotateCcw className="w-3.5 h-3.5" />}
+                  onClick={() => handleRestore(record.id)}
+                  className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 flex items-center justify-center p-2 rounded-lg border border-emerald-500/20"
+                />
+              </Tooltip>
+              <Tooltip title="Force Delete Permanently">
+                <Button
+                  type="text"
+                  danger
+                  icon={<AlertTriangle className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    setIsForceDelete(true);
+                    setDeletePostId(record.id);
+                  }}
+                  className="bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center p-2 rounded-lg border border-red-500/20"
+                />
+              </Tooltip>
+            </Space>
+          );
+        }
+
+        return (
+          <Space size="middle">
+            <Tooltip title="Edit Post">
+              <Button
+                type="text"
+                icon={<Edit2 className="w-3.5 h-3.5" />}
+                onClick={() => navigate(`/admin/posts/edit/${record.id}`)}
+                className="bg-slate-800 hover:bg-slate-700/80 text-gray-300 flex items-center justify-center p-2 rounded-lg border border-slate-750"
+              />
+            </Tooltip>
+            <Tooltip title="Delete Post">
+              <Button
+                type="text"
+                danger
+                icon={<Trash2 className="w-3.5 h-3.5" />}
+                onClick={() => {
+                  setIsForceDelete(false);
+                  setDeletePostId(record.id);
+                }}
+                className="bg-dangerRed/10 hover:bg-dangerRed/20 text-dangerRed flex items-center justify-center p-2 rounded-lg border border-dangerRed/20"
+              />
+            </Tooltip>
+          </Space>
+        );
+      }
     }
   ];
 
@@ -262,13 +319,19 @@ export const PostList: React.FC = () => {
           </h1>
           <p className="text-xs text-gray-500 mt-1">{t('posts_management_desc')}</p>
         </div>
-        <Link
-          to="/admin/posts/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-btn-global hover:brightness-110 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-accentBlue/10 select-none"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{t('create_post')}</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-white/40 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/60 rounded-xl px-4 py-2 w-fit">
+            <span className="text-xs font-semibold text-slate-700 dark:text-gray-300">Show Deleted</span>
+            <Switch checked={showDeleted} onChange={setShowDeleted} size="small" />
+          </div>
+          <Link
+            to="/admin/posts/new"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-btn-global hover:brightness-110 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-accentBlue/10 select-none"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t('create_post')}</span>
+          </Link>
+        </div>
       </div>
 
       {/* Main Glassmorphic Wrapper */}
@@ -394,18 +457,25 @@ export const PostList: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       <Modal
-        title={<span className="font-extrabold text-base text-slate-800 dark:text-white flex items-center gap-2 select-none"><Trash2 className="w-5 h-5 text-dangerRed" /> Delete Article?</span>}
+        title={
+          <span className="font-extrabold text-base text-slate-800 dark:text-white flex items-center gap-2 select-none">
+            <Trash2 className="w-5 h-5 text-dangerRed" /> 
+            {isForceDelete ? 'Permanently Delete Article?' : 'Delete Article (Soft Delete)?'}
+          </span>
+        }
         open={deletePostId !== null}
         onOk={handleDeleteConfirm}
         onCancel={() => setDeletePostId(null)}
-        okText={t('btn_delete') || 'Delete'}
+        okText={isForceDelete ? 'Force Delete' : (t('btn_delete') || 'Delete')}
         cancelText={t('btn_cancel') || 'Cancel'}
         okButtonProps={{ danger: true, className: "rounded-xl font-bold h-9" }}
         cancelButtonProps={{ className: "rounded-xl font-bold h-9" }}
         className="select-none"
       >
         <p className="text-sm text-gray-500 mt-3 mb-2 font-medium leading-relaxed select-text">
-          Are you sure you want to permanently delete this article? This action cannot be undone.
+          {isForceDelete 
+            ? 'Are you sure you want to permanently delete this article? This action is irreversible.'
+            : 'Are you sure you want to delete this article? You can restore it later from the deleted view.'}
         </p>
       </Modal>
     </div>
