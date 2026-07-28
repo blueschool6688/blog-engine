@@ -40,24 +40,27 @@ services:
     restart: always
     build:
       args:
-        VITE_API_BASE_URL: https://yourdomain.com/api
+        VITE_API_BASE_URL: https://bookdata-store.io.vn/api
     environment:
-      VITE_API_BASE_URL: https://yourdomain.com/api
+      VITE_API_BASE_URL: https://bookdata-store.io.vn/api
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
 
-  # ── Nginx Reverse Proxy ────────────────────────────────────
+  # ── Nginx Reverse Proxy (build từ Dockerfile riêng) ───────
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     restart: always
+    environment:
+      DOMAIN: ${DOMAIN:-bookdata-store.io.vn}
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - uploads:/app/uploads:ro
     depends_on:

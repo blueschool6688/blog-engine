@@ -6,9 +6,9 @@
 # ── Stage 1: Install dependencies ────────────────────────────
 FROM node:22-alpine AS deps
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
 # ── Stage 2: Build SSR bundle ────────────────────────────────
 FROM deps AS builder
@@ -27,11 +27,11 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 # Copy only production dependencies + build output
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --ignore-scripts --prod
+RUN pnpm install --no-frozen-lockfile --ignore-scripts --prod
 
 COPY --from=builder /app/build ./build
 
