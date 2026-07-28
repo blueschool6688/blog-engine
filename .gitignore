@@ -1,5 +1,6 @@
 /web/node_modules
 .env
+.env.docker
 .env.backup
 /backend/vendor
 npm-debug.log
