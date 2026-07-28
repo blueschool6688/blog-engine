@@ -12,6 +12,7 @@ import (
 	"backend/pkg/database"
 	"backend/pkg/logger"
 	"backend/pkg/mailer"
+	storagePkg "backend/pkg/storage"
 
 	// Auth Domain
 	authHandlers "backend/internal/auth/handlers"
@@ -118,9 +119,15 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	mediaRepo := mediaRepository.NewMediaRepository(db)
 	imageChan := make(chan uint, 100)
 	videoChan := make(chan uint, 100)
-	worker := mediaWorker.NewMediaWorker(mediaRepo, log, imageChan, videoChan, cfg.UploadsDir)
+
+	// Khởi tạo Dynamic Storage (wrapper tự động switch driver theo DB settings)
+	dynStorage := storagePkg.NewDynamicStorage(db, cfg)
+
+	worker := mediaWorker.NewMediaWorker(mediaRepo, log, dynStorage, imageChan, videoChan)
 	worker.Start(ctx)
-	mediaHandler := mediaHandlers.NewMediaHandler(mediaRepo, imageChan, videoChan, cfg.UploadsDir, auditSvc)
+	mediaHandler := mediaHandlers.NewMediaHandler(mediaRepo, imageChan, videoChan, dynStorage, auditSvc)
+
+	// Xóa dòng gán mediaHandler cũ vì đã gán ở trên.
 
 	tagRepo := tagRepository.NewTagRepository(db)
 	tagHandler := tagHandlers.NewTagHandler(tagRepo)
@@ -140,7 +147,7 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	feedbackHandler := feedbackHandlers.NewFeedbackHandler(feedbackRepo, auditSvc)
 
 	settingsRepo := settingsRepository.NewSettingsRepository(db)
-	settingsHandler := settingsHandlers.NewSettingsHandler(settingsRepo)
+	settingsHandler := settingsHandlers.NewSettingsHandler(settingsRepo, dynStorage)
 
 	dashboardHandler := dashboardHandlers.NewDashboardHandler(db, cfg.UploadsDir)
 
@@ -239,7 +246,6 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	})
 
 	api := app.Group("/api")
-	api.Get("/settings", settingsHandler.GetSettings)
 
 	// Discord Webhook
 	api.Post("/webhooks/discord", discordWebhookHandler.Handle)
@@ -279,6 +285,7 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	public.Get("/authors", publicHandler.ListAuthors)
 	public.Get("/authors/:nickname", publicHandler.GetAuthorByNickname)
 	public.Post("/feedbacks", feedbackHandler.Create)
+	public.Get("/settings", settingsHandler.GetPublicSettings)
 
 	// Comments & Reactions ()
 	public.Get("/posts/:id/comments", commentHandler.ListComments)
@@ -299,6 +306,7 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	protected.Get("/dashboard/stats", dashboardHandler.GetStats)
 
 	// Settings
+	protected.Get("/settings", settingsHandler.GetSettings)
 	protected.Put("/settings", settingsHandler.UpdateSettings)
 
 	// AI Routes

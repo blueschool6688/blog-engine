@@ -8,9 +8,11 @@ export const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -20,7 +22,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('access_token');
       window.location.href = '/system/login';
     }
@@ -438,6 +440,10 @@ export const dashboardService = {
 };
 
 export const settingsService = {
+  getPublic: async () => {
+    const response = await api.get<APIResponse<Record<string, string>>>('/public/settings');
+    return response.data;
+  },
   get: async () => {
     const response = await api.get<APIResponse<Record<string, string>>>('/settings');
     return response.data;
@@ -447,6 +453,7 @@ export const settingsService = {
     return response.data;
   },
 };
+
 
 export const profileService = {
   updateProfile: async (data: { name: string; nickname: string; email: string; avatar_url: string; bio?: string }) => {

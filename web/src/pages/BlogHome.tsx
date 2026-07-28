@@ -1,13 +1,66 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import React, { useState } from 'react';
+import { Link, useSearchParams, useLoaderData, useNavigation } from 'react-router';
 import { publicService, settingsService } from '../services/api';
 import type { Post, Category, Tag } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { Pagination, Input, Card, Tag as AntTag } from 'antd';
 import { PostCard, PostCardSkeleton } from '../components/PostCard';
 
-export async function loader() {
-  return null;
+export async function loader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const searchParams = url.searchParams;
+  
+  const currentPage = parseInt(searchParams.get('page') || '1');
+  const LIMIT = 6;
+  const offset = (currentPage - 1) * LIMIT;
+  const selectedCategories = searchParams.get('category') ? searchParams.get('category')!.split(',').filter(Boolean) : [];
+  const selectedTags = searchParams.get('tag') ? searchParams.get('tag')!.split(',').filter(Boolean) : [];
+  const searchQuery = searchParams.get('q') || '';
+
+  const params: any = {
+    offset,
+    limit: LIMIT,
+  };
+  if (searchQuery) params.search = searchQuery;
+
+  try {
+    const [postsRes, catRes, tagRes, settingsRes] = await Promise.all([
+      publicService.getPosts(params),
+      publicService.getCategories(),
+      publicService.getTags(),
+      settingsService.getPublic()
+    ]);
+
+    let items = postsRes.data?.items || [];
+    if (selectedCategories.length > 0) {
+      items = items.filter((p: any) =>
+        p.categories?.some((c: any) => selectedCategories.includes(c.slug))
+      );
+    }
+    if (selectedTags.length > 0) {
+      items = items.filter((p: any) =>
+        p.tags?.some((t: any) => selectedTags.includes(t.slug))
+      );
+    }
+
+    const total = selectedCategories.length > 0 || selectedTags.length > 0 ? items.length : postsRes.data?.total || items.length;
+
+    return {
+      posts: items,
+      total,
+      categories: catRes.data || [],
+      tags: tagRes.data || [],
+      settings: settingsRes.data || null
+    };
+  } catch (err) {
+    return {
+      posts: [],
+      total: 0,
+      categories: [],
+      tags: [],
+      settings: null
+    };
+  }
 }
 
 function formatRelative(dateStr: string, t: any): string {
@@ -34,94 +87,23 @@ function estimateReadTime(html: string): number {
 
 export const BlogHome: React.FC = () => {
   const { t, language } = useLanguage();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [searchInput, setSearchInput] = useState('');
-
-  const [heroKicker, setHeroKicker] = useState('');
-  const [heroTitleLine1, setHeroTitleLine1] = useState('');
-  const [heroTitleLine2, setHeroTitleLine2] = useState('');
-  const [heroSubtitle, setHeroSubtitle] = useState('');
+  const { posts, total, categories, tags, settings } = useLoaderData() as any;
+  const navigation = useNavigation();
+  const loading = navigation.state === "loading";
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
+  
   const LIMIT = 6;
   const currentPage = parseInt(searchParams.get('page') || '1');
   const selectedCategories = searchParams.get('category') ? searchParams.get('category')!.split(',').filter(Boolean) : [];
   const selectedTags = searchParams.get('tag') ? searchParams.get('tag')!.split(',').filter(Boolean) : [];
   const searchQuery = searchParams.get('q') || '';
 
-  const loadPosts = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    try {
-      const offset = (currentPage - 1) * LIMIT;
-      const params: Parameters<typeof publicService.getPosts>[0] = {
-        offset,
-        limit: LIMIT,
-      };
-      if (searchQuery) params.search = searchQuery;
-      const res = await publicService.getPosts(params);
-      if (signal?.aborted) return;
-
-      let items = res.data?.items || [];
-
-      if (selectedCategories.length > 0) {
-        items = items.filter((p) =>
-          p.categories?.some((c) => selectedCategories.includes(c.slug))
-        );
-      }
-      if (selectedTags.length > 0) {
-        items = items.filter((p) =>
-          p.tags?.some((t) => selectedTags.includes(t.slug))
-        );
-      }
-
-      setPosts(items);
-      setTotal(selectedCategories.length > 0 || selectedTags.length > 0 ? items.length : res.data?.total || items.length);
-    } catch (err: any) {
-      if (err?.name === 'AbortError' || err?.code === 'ERR_CANCELED') return;
-      setPosts([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, selectedCategories.join(','), selectedTags.join(','), searchQuery]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    loadPosts(controller.signal);
-    return () => controller.abort();
-  }, [loadPosts]);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      publicService.getCategories(),
-      publicService.getTags(),
-    ]).then(([catRes, tagRes]) => {
-      if (cancelled) return;
-      setCategories(catRes.data || []);
-      setTags(tagRes.data || []);
-    }).catch(() => { });
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    settingsService.get().then((res) => {
-      if (cancelled) return;
-      if (res.success && res.data) {
-        const data = res.data;
-        setHeroKicker(data.hero_kicker || '');
-        setHeroTitleLine1(data.hero_title_line1 || '');
-        setHeroTitleLine2(data.hero_title_line2 || '');
-        setHeroSubtitle(data.hero_subtitle || '');
-      }
-    }).catch(() => { });
-    return () => { cancelled = true; };
-  }, []);
+  const heroKicker = settings?.hero_kicker || '';
+  const heroTitleLine1 = settings?.hero_title_line1 || '';
+  const heroTitleLine2 = settings?.hero_title_line2 || '';
+  const heroSubtitle = settings?.hero_subtitle || '';
 
   const toggleFilter = (key: 'category' | 'tag', value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -217,7 +199,7 @@ export const BlogHome: React.FC = () => {
               >
                 {t('all_posts')}
               </AntTag.CheckableTag>
-              {categories.map((cat) => {
+              {categories.map((cat: Category) => {
                 const isSelected = selectedCategories.includes(cat.slug);
                 return (
                   <AntTag.CheckableTag
@@ -242,7 +224,7 @@ export const BlogHome: React.FC = () => {
               <span className="text-xs font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider mr-1">
                 {t('tags') || 'Tags'}:
               </span>
-              {tags.slice(0, 24).map((tag) => {
+              {tags.slice(0, 24).map((tag: Tag) => {
                 const isSelected = selectedTags.includes(tag.slug);
                 return (
                   <AntTag.CheckableTag
@@ -273,7 +255,7 @@ export const BlogHome: React.FC = () => {
                   color="blue"
                   className="rounded-full px-2.5 py-0.5 font-semibold text-xs m-0"
                 >
-                  {categories.find((c) => c.slug === catSlug)?.name || catSlug}
+                  {categories.find((c: Category) => c.slug === catSlug)?.name || catSlug}
                 </AntTag>
               ))}
               {selectedTags.map((tagSlug) => (
@@ -284,7 +266,7 @@ export const BlogHome: React.FC = () => {
                   color="purple"
                   className="rounded-full px-2.5 py-0.5 font-semibold text-xs m-0"
                 >
-                  #{tags.find((t) => t.slug === tagSlug)?.name || tagSlug}
+                  #{tags.find((t: Tag) => t.slug === tagSlug)?.name || tagSlug}
                 </AntTag>
               ))}
               {searchQuery && (
@@ -332,7 +314,7 @@ export const BlogHome: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {posts.map((post) => (
+          {posts.map((post: Post) => (
             <PostCard
               key={post.id}
               post={post}
@@ -360,6 +342,18 @@ export const BlogHome: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="mx-auto space-y-8 select-none max-w-7xl px-4 pt-10">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[...Array(6)].map((_, i) => (
+          <PostCardSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default BlogHome;
 

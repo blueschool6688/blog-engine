@@ -1,11 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useLoaderData, useSearchParams, useRevalidator, useNavigation } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { auditService } from '../services/api';
 import type { AuditLog as AuditLogType } from '../services/api';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const entityTypeFilter = url.searchParams.get('entity_type') || '';
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = 15;
+  const offset = (page - 1) * limit;
+
+  try {
+    const res = await auditService.list({
+      offset,
+      limit,
+      entity_type: entityTypeFilter || undefined,
+    });
+    if (res.success && res.data) {
+      return { logs: res.data.items || [], total: res.data.total || 0 };
+    }
+  } catch (err) {
+    console.error('Failed to retrieve system audit logs', err);
+  }
+  return { logs: [], total: 0 };
 }
 import {
   FileText,
@@ -23,44 +42,21 @@ import {
 
 export const AuditLog: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const { showError } = useToast();
-
-  const [logs, setLogs] = useState<AuditLogType[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [entityTypeFilter, setEntityTypeFilter] = useState('');
-
-  // Pagination
-  const [page, setPage] = useState(1);
+  
+  const { logs, total } = useLoaderData() as any;
+  const { revalidate, state } = useRevalidator();
+  const navigation = useNavigation();
+  const loading = navigation.state === 'loading';
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const entityTypeFilter = searchParams.get('entity_type') || '';
+  const page = parseInt(searchParams.get('page') || '1');
   const limit = 15;
 
   // Detail Modal state
   const [viewingLog, setViewingLog] = useState<AuditLogType | null>(null);
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
-      const offset = (page - 1) * limit;
-      const res = await auditService.list({
-        offset,
-        limit,
-        entity_type: entityTypeFilter || undefined,
-      });
-      if (res.success && res.data) {
-        setLogs(res.data.items || []);
-        setTotal(res.data.total || 0);
-      }
-    } catch (err) {
-      console.error(err);
-      showError('Failed to retrieve system audit logs');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchLogs();
-  }, [entityTypeFilter, page]);
 
   // Auth Guard
   if (currentUser?.role !== 'admin') {
@@ -181,8 +177,13 @@ export const AuditLog: React.FC = () => {
             <select
               value={entityTypeFilter}
               onChange={(e) => {
-                setEntityTypeFilter(e.target.value);
-                setPage(1);
+                setSearchParams(prev => {
+                  const next = new URLSearchParams(prev);
+                  if (e.target.value) next.set('entity_type', e.target.value);
+                  else next.delete('entity_type');
+                  next.set('page', '1');
+                  return next;
+                });
               }}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 text-slate-700 dark:text-gray-300 rounded-xl py-2 px-3 outline-none text-xs"
             >
@@ -196,7 +197,7 @@ export const AuditLog: React.FC = () => {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchLogs}
+              onClick={() => revalidate()}
               className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200 transition-colors"
               title="Refresh log"
             >
@@ -274,7 +275,13 @@ export const AuditLog: React.FC = () => {
           <div className="p-4 border-t border-slate-800/50 bg-slate-900/10 flex justify-between items-center">
             <button
               disabled={page === 1}
-              onClick={() => setPage(page - 1)}
+              onClick={() => {
+                setSearchParams(prev => {
+                  const next = new URLSearchParams(prev);
+                  next.set('page', String(page - 1));
+                  return next;
+                });
+              }}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
             >
               Previous
@@ -284,7 +291,13 @@ export const AuditLog: React.FC = () => {
             </span>
             <button
               disabled={page * limit >= total}
-              onClick={() => setPage(page + 1)}
+              onClick={() => {
+                setSearchParams(prev => {
+                  const next = new URLSearchParams(prev);
+                  next.set('page', String(page + 1));
+                  return next;
+                });
+              }}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
             >
               Next
@@ -295,5 +308,19 @@ export const AuditLog: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <div className="h-8 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-1" />
+        </div>
+      </div>
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl h-[400px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+    </div>
+  );
+}
 
 export default AuditLog;

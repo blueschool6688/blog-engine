@@ -51,7 +51,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   estimateReadTime,
   toggleFilter,
 }) => {
-  const coverUrl = post.cover_media?.url ? getFullUrl(post.cover_media.url) : '';
+  const coverUrl = post.cover_media?.thumbnail_url
+    ? getFullUrl(post.cover_media.thumbnail_url)
+    : post.cover_media?.url
+    ? getFullUrl(post.cover_media.url)
+    : '';
   const readTime = estimateReadTime(post.content || post.excerpt || '');
   const primaryCategory = post.categories?.[0];
   const isPDF = !!post.is_document;

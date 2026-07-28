@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link, useParams, useNavigate } from 'react-router';
+import { Link, useParams, useNavigate, useLoaderData, useNavigation, Navigate } from 'react-router';
 import { publicService, getFullUrl } from '../services/api';
 import type { Post, Category } from '../services/api';
 import { CommentSection } from '../components/CommentSection';
@@ -21,8 +21,24 @@ import { useLanguage } from '../context/LanguageContext';
 import { Skeleton, Button, Modal } from 'antd';
 import { PostCard } from '../components/PostCard';
 
-export async function loader() {
-  return null;
+export async function loader({ params }: { params: any }) {
+  const slug = params.slug;
+  if (!slug) return { post: null, relatedPosts: [] };
+  
+  try {
+    const postRes = await publicService.getPostBySlug(slug);
+    const post = postRes.data;
+    
+    let relatedPosts = [];
+    if (post?.categories?.[0]?.id) {
+      const relRes = await publicService.getPosts({ category_id: post.categories[0].id, limit: 4 });
+      relatedPosts = (relRes.data?.items || []).filter((item: any) => item.id !== post.id).slice(0, 3);
+    }
+    
+    return { post, relatedPosts };
+  } catch (err) {
+    return { post: null, relatedPosts: [] };
+  }
 }
 
 interface TocItem {
@@ -151,8 +167,9 @@ export const BlogPostDetail: React.FC = () => {
   const { t, language } = useLanguage();
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const [post, setPost] = useState<Post | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { post, relatedPosts } = useLoaderData() as any;
+  const navigation = useNavigation();
+  const loading = navigation.state === "loading";
   const [processedHtml, setProcessedHtml] = useState('');
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState('');
@@ -193,30 +210,7 @@ export const BlogPostDetail: React.FC = () => {
     }
   };
 
-  const [relatedPosts, setRelatedPosts] = useState<Post[]>([]);
-
-  useEffect(() => {
-    if (!slug) return;
-    setLoading(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    publicService.getPostBySlug(slug)
-      .then((res) => {
-        const p = res.data;
-        setPost(p);
-
-        // Fetch related posts from same category or latest
-        const primaryCatId = p?.categories?.[0]?.id;
-        publicService.getPosts({ category_id: primaryCatId, limit: 4 })
-          .then((relRes) => {
-            const items = relRes.data?.items || [];
-            const filtered = items.filter((item: any) => item.id !== p.id).slice(0, 3);
-            setRelatedPosts(filtered);
-          })
-          .catch(() => { });
-      })
-      .catch(() => navigate('/'))
-      .finally(() => setLoading(false));
-  }, [slug, navigate]);
+  // useEffect for fetching data is removed, handled by loader
 
   useEffect(() => {
     if (!post) return;
@@ -293,21 +287,12 @@ export const BlogPostDetail: React.FC = () => {
     return () => document.removeEventListener('click', handleCopyClick);
   }, [handleCopyClick]);
 
-  if (loading || !post) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-10">
-        <div className="space-y-4 mb-8">
-          <Skeleton active paragraph={false} title={{ width: '30%' }} />
-          <Skeleton active paragraph={{ rows: 2, width: ['100%', '65%'] }} title={false} />
-          <Skeleton active paragraph={false} title={{ width: '45%' }} />
-        </div>
-        <div className="space-y-3">
-          <Skeleton active paragraph={{ rows: 5 }} />
-          <Skeleton active paragraph={{ rows: 4 }} />
-          <Skeleton active paragraph={{ rows: 3, width: ['100%', '80%', '60%'] }} />
-        </div>
-      </div>
-    );
+  if (loading) {
+    return <HydrateFallback />;
+  }
+
+  if (!post) {
+    return <Navigate to="/" replace />;
   }
 
   const readTime = estimateReadTime(post.content || '');
@@ -871,5 +856,22 @@ export const BlogPostDetail: React.FC = () => {
     </>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-10">
+      <div className="space-y-4 mb-8">
+        <Skeleton active paragraph={false} title={{ width: '30%' }} />
+        <Skeleton active paragraph={{ rows: 2, width: ['100%', '65%'] }} title={false} />
+        <Skeleton active paragraph={false} title={{ width: '45%' }} />
+      </div>
+      <div className="space-y-3">
+        <Skeleton active paragraph={{ rows: 5 }} />
+        <Skeleton active paragraph={{ rows: 4 }} />
+        <Skeleton active paragraph={{ rows: 3, width: ['100%', '80%', '60%'] }} />
+      </div>
+    </div>
+  );
+}
 
 export default BlogPostDetail;

@@ -1,36 +1,9 @@
-version: '3.9'
 
 networks:
   backend_net:
     driver: bridge
 
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-root}
-      POSTGRES_DB: ${DB_NAME:-blogs}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - backend_net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-blogs}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
-  memcached:
-    image: memcached:1.6-alpine
-    restart: unless-stopped
-    command: memcached -m 256
-    networks:
-      - backend_net
 
   migrate:
     build:
@@ -38,13 +11,6 @@ services:
       dockerfile: Dockerfile
     command: ["/migrate"]
     env_file: .env
-    environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      MEMCACHED_ADDR: memcached:11211
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - backend_net
     restart: "no"
@@ -56,24 +22,16 @@ services:
     command: ["/cms"]
     restart: unless-stopped
     env_file: .env
-    environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      MEMCACHED_ADDR: memcached:11211
-      UPLOADS_DIR: /app/uploads
     volumes:
       - uploads:/app/uploads
     depends_on:
       migrate:
         condition: service_completed_successfully
-      memcached:
-        condition: service_started
     networks:
       - backend_net
     ports:
       - "8080:8080"
 
-  # ── Go Background Worker ──────────────────────────────────────────
   worker:
     build:
       context: ./backend
@@ -81,11 +39,6 @@ services:
     command: ["/worker"]
     restart: unless-stopped
     env_file: .env
-    environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      MEMCACHED_ADDR: memcached:11211
-      UPLOADS_DIR: /app/uploads
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -94,17 +47,16 @@ services:
     networks:
       - backend_net
 
-  # ── React Router v7 SSR Frontend ─────────────────────────────────
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://api:8080
-        VITE_PUBLIC_API_URL: http://localhost:8080
+        VITE_API_BASE_URL: http://api:8080/api
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      VITE_API_BASE_URL: http://api:8080/api
     depends_on:
       api:
         condition: service_started
@@ -113,19 +65,5 @@ services:
     ports:
       - "3000:3000"
 
-  # ── Adminer — DB GUI (dev profile only) ──────────────────────────
-  # Usage: docker compose --profile dev up -d
-  adminer:
-    image: adminer:latest
-    depends_on:
-      - db
-    networks:
-      - backend_net
-    ports:
-      - "8081:8080"
-    profiles:
-      - dev
-
 volumes:
-  postgres_data:
   uploads:

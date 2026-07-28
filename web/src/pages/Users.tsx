@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useLoaderData, useSearchParams, useRevalidator, useNavigation } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { userService, getFullUrl } from '../services/api';
@@ -7,19 +8,34 @@ import { Table, Button, Modal, Form, Input, Select, Switch, Tag as AntdTag, Tool
 import type { ColumnsType } from 'antd/es/table';
 import { Plus, Edit2, Shield, AlertOctagon, Mail, Lock, User as UserIcon } from 'lucide-react';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const roleFilter = url.searchParams.get('role') || '';
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = 10;
+  const offset = (page - 1) * limit;
+  try {
+    const res = await userService.list(offset, limit, roleFilter);
+    if (res.success && res.data) {
+      return { users: res.data.items || [], total: res.data.total || 0 };
+    }
+  } catch (err) {
+    console.error('Failed to retrieve user list', err);
+  }
+  return { users: [], total: 0 };
 }
 
 export const Users: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { showSuccess, showError } = useToast();
-
-  const [users, setUsers] = useState<User[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [roleFilter, setRoleFilter] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+  
+  const { users, total } = useLoaderData() as any;
+  const { revalidate, state } = useRevalidator();
+  const navigation = useNavigation();
+  const loading = navigation.state === 'loading';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const roleFilter = searchParams.get('role') || '';
+  const currentPage = parseInt(searchParams.get('page') || '1');
   const limit = 10;
 
   // Create/Edit Modals state
@@ -28,27 +44,6 @@ export const Users: React.FC = () => {
   const [modalLoading, setModalLoading] = useState(false);
   
   const [form] = Form.useForm();
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const offset = (currentPage - 1) * limit;
-      const res = await userService.list(offset, limit, roleFilter);
-      if (res.success && res.data) {
-        setUsers(res.data.items || []);
-        setTotal(res.data.total || 0);
-      }
-    } catch (err) {
-      console.error(err);
-      showError('Failed to retrieve user list');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, [roleFilter, currentPage]);
 
   if (currentUser?.role !== 'admin') {
     return (
@@ -106,7 +101,7 @@ export const Users: React.FC = () => {
         showSuccess('New user account created successfully');
       }
       setIsModalOpen(false);
-      fetchUsers();
+      revalidate();
     } catch (err: any) {
       console.error(err);
       showError(err.response?.data?.message || 'Failed to save user account');
@@ -124,7 +119,7 @@ export const Users: React.FC = () => {
         is_active: checked,
       });
       showSuccess(`Successfully ${checked ? 'activated' : 'deactivated'} user ${user.name}`);
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: checked } : u));
+      revalidate();
     } catch (err) {
       console.error(err);
       showError('Failed to change user status');
@@ -249,7 +244,15 @@ export const Users: React.FC = () => {
         <div className="flex justify-between items-center select-none pb-2">
           <Select
             value={roleFilter}
-            onChange={(val: string) => { setRoleFilter(val); setCurrentPage(1); }}
+            onChange={(val: string) => { 
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                if (val) next.set('role', val);
+                else next.delete('role');
+                next.set('page', '1');
+                return next;
+              });
+            }}
             options={[
               { label: 'All Roles', value: '' },
               { label: 'Admin', value: 'admin' },
@@ -270,7 +273,13 @@ export const Users: React.FC = () => {
             current: currentPage,
             pageSize: limit,
             total: total,
-            onChange: (page: number) => setCurrentPage(page),
+            onChange: (page: number) => {
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                next.set('page', String(page));
+                return next;
+              });
+            },
             showSizeChanger: false,
             className: "select-none"
           }}
@@ -390,5 +399,19 @@ export const Users: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <div className="h-8 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-1" />
+        </div>
+      </div>
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl h-[400px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+    </div>
+  );
+}
 
 export default Users;

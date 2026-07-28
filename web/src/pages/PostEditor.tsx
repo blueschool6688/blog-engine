@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams, Link, useLoaderData, useNavigation } from 'react-router';
 import { ArrowLeft, Save, Image as ImageIcon, Trash, FileText, Languages, Sparkles } from 'lucide-react';
 import { postService, mediaService, categoryService, tagService, translateService, aiService, getFullUrl } from '../services/api';
 import type { Media, Category, Tag } from '../services/api';
@@ -10,8 +10,23 @@ import { useToast } from '../context/ToastContext';
 import { Form, Input, Button, Select, Switch, DatePicker, Collapse, Card, Spin, Modal, Tabs } from 'antd';
 import dayjs from 'dayjs';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ params }: { params: any }) {
+  const isEdit = !!params.id;
+  try {
+    const [catRes, tagRes, postRes] = await Promise.all([
+      categoryService.list(),
+      tagService.list(),
+      isEdit ? postService.detail(Number(params.id)) : Promise.resolve({ data: null })
+    ]);
+    return {
+      categories: catRes.data || [],
+      tags: tagRes.data || [],
+      post: postRes.data
+    };
+  } catch (err) {
+    console.error('Failed to load data', err);
+    return { categories: [], tags: [], post: null, error: true };
+  }
 }
 
 export const PostEditor: React.FC = () => {
@@ -32,17 +47,21 @@ export const PostEditor: React.FC = () => {
   const [selectedCover, setSelectedCover] = useState<Media | null>(null);
   const [selectedPDF, setSelectedPDF] = useState<Media | null>(null);
 
+  const { categories, tags, post } = useLoaderData() as any;
+  const navigation = useNavigation();
+  const loadingInitial = navigation.state === "loading";
+
   // Option lists
-  const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>(categories || []);
+  const [allTags, setAllTags] = useState<Tag[]>(tags || []);
 
   // Watchers for custom rendering (SEO Google preview, etc.)
-  const [titleVal, setTitleVal] = useState('');
-  const [slugVal, setSlugVal] = useState('');
-  const [excerptVal, setExcerptVal] = useState('');
-  const [metaTitleVal, setMetaTitleVal] = useState('');
-  const [metaDescVal, setMetaDescVal] = useState('');
-  const [isDocVal, setIsDocVal] = useState(false);
+  const [titleVal, setTitleVal] = useState(post?.title || '');
+  const [slugVal, setSlugVal] = useState(post?.slug || '');
+  const [excerptVal, setExcerptVal] = useState(post?.excerpt || '');
+  const [metaTitleVal, setMetaTitleVal] = useState(post?.meta_title || '');
+  const [metaDescVal, setMetaDescVal] = useState(post?.meta_desc || '');
+  const [isDocVal, setIsDocVal] = useState(post?.is_document || false);
 
   // Auto-translate states & functions
   const [translating, setTranslating] = useState(false);
@@ -268,70 +287,32 @@ export const PostEditor: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchOptions = async () => {
-      try {
-        const [catRes, tagRes] = await Promise.all([
-          categoryService.list(),
-          tagService.list()
-        ]);
-        setAllCategories(catRes.data || []);
-        setAllTags(tagRes.data || []);
-      } catch (err) {
-        console.error('Failed to load filters options', err);
-      }
-    };
-    fetchOptions();
-  }, []);
+    if (isEdit && post) {
+      form.setFieldsValue({
+        title: post.title,
+        title_en: post.title_en || '',
+        slug: post.slug,
+        slug_en: post.slug_en || '',
+        excerpt: post.excerpt || '',
+        excerpt_en: post.excerpt_en || '',
+        content: post.content || '',
+        content_en: post.content_en || '',
+        status: post.status,
+        cover_media_id: post.cover_media_id || undefined,
+        is_featured: post.is_featured || false,
+        is_document: post.is_document || false,
+        pdf_media_id: post.pdf_media_id || undefined,
+        meta_title: post.meta_title || '',
+        meta_desc: post.meta_desc || '',
+        published_at: post.published_at ? dayjs(post.published_at) : null,
+        category_ids: post.categories?.map((c: Category) => c.id) || [],
+        tag_ids: post.tags?.map((t: Tag) => t.id) || [],
+      });
 
-  useEffect(() => {
-    if (isEdit) {
-      const loadPost = async () => {
-        setFetching(true);
-        try {
-          const res = await postService.detail(Number(id));
-          const post = res.data;
-          form.setFieldsValue({
-            title: post.title,
-            title_en: post.title_en || '',
-            slug: post.slug,
-            slug_en: post.slug_en || '',
-            excerpt: post.excerpt || '',
-            excerpt_en: post.excerpt_en || '',
-            content: post.content || '',
-            content_en: post.content_en || '',
-            status: post.status,
-            cover_media_id: post.cover_media_id || undefined,
-            is_featured: post.is_featured || false,
-            is_document: post.is_document || false,
-            pdf_media_id: post.pdf_media_id || undefined,
-            meta_title: post.meta_title || '',
-            meta_desc: post.meta_desc || '',
-            published_at: post.published_at ? dayjs(post.published_at) : null,
-            category_ids: post.categories?.map(c => c.id) || [],
-            tag_ids: post.tags?.map(t => t.id) || [],
-          });
-
-          // Sync local state for previews
-          setTitleVal(post.title || '');
-          setSlugVal(post.slug || '');
-          setExcerptVal(post.excerpt || '');
-          setMetaTitleVal(post.meta_title || '');
-          setMetaDescVal(post.meta_desc || '');
-          setIsDocVal(post.is_document || false);
-
-          if (post.cover_media) setSelectedCover(post.cover_media);
-          if (post.pdf_media) setSelectedPDF(post.pdf_media);
-        } catch (err) {
-          console.error(err);
-          showError('Failed to load post details.');
-          navigate('/admin/posts');
-        } finally {
-          setFetching(false);
-        }
-      };
-      loadPost();
+      if (post.cover_media) setSelectedCover(post.cover_media);
+      if (post.pdf_media) setSelectedPDF(post.pdf_media);
     }
-  }, [id, isEdit, form, navigate]);
+  }, [isEdit, post, form]);
 
   const loadMedia = async () => {
     try {
@@ -396,13 +377,7 @@ export const PostEditor: React.FC = () => {
     }
   };
 
-  if (fetching) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Spin size="large" tip="Loading post details..." />
-      </div>
-    );
-  }
+  // Render logic continues
 
   return (
     <div className="space-y-6">
@@ -951,5 +926,25 @@ export const PostEditor: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-5">
+        <div className="h-10 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse"></div>
+        <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse"></div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="h-[600px] bg-slate-200 dark:bg-slate-800/50 rounded-2xl animate-pulse"></div>
+        </div>
+        <div className="space-y-6">
+          <div className="h-64 bg-slate-200 dark:bg-slate-800/50 rounded-2xl animate-pulse"></div>
+          <div className="h-48 bg-slate-200 dark:bg-slate-800/50 rounded-2xl animate-pulse"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default PostEditor;

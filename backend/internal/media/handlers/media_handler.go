@@ -1,18 +1,22 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"os"
+	"image"
+	"image/jpeg"
+	"image/png"
+	"io"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"backend/internal/media/models"
 	"backend/internal/media/repository"
 	auditService "backend/internal/audit/service"
 	"backend/internal/shared/response"
+	"backend/pkg/storage"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -21,16 +25,22 @@ type MediaHandler struct {
 	repo      *repository.MediaRepository
 	imageChan chan uint
 	videoChan chan uint
-	uploads   string
+	storage   storage.Storage
 	auditSvc  *auditService.AuditService
 }
 
-func NewMediaHandler(repo *repository.MediaRepository, imageChan chan uint, videoChan chan uint, uploads string, auditSvc *auditService.AuditService) *MediaHandler {
+func NewMediaHandler(
+	repo *repository.MediaRepository,
+	imageChan chan uint,
+	videoChan chan uint,
+	store storage.Storage,
+	auditSvc *auditService.AuditService,
+) *MediaHandler {
 	return &MediaHandler{
 		repo:      repo,
 		imageChan: imageChan,
 		videoChan: videoChan,
-		uploads:   uploads,
+		storage:   store,
 		auditSvc:  auditSvc,
 	}
 }
@@ -44,112 +54,100 @@ func (h *MediaHandler) Upload(c *fiber.Ctx) error {
 	mimeType := file.Header.Get("Content-Type")
 	var mediaType string
 	var sizeLimit int64
+	var folder string // thư mục phân loại: images, videos, documents
 
 	if strings.HasPrefix(mimeType, "image/") {
 		mediaType = "image"
+		folder = "images"
 		sizeLimit = 10 * 1024 * 1024 // 10MB
 	} else if mimeType == "video/mp4" || mimeType == "video/webm" {
 		mediaType = "video"
+		folder = "videos"
 		sizeLimit = 500 * 1024 * 1024 // 500MB
-	} else if mimeType == "application/pdf" || 
-		mimeType == "text/plain" || 
-		mimeType == "application/msword" || 
-		mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || 
-		mimeType == "application/vnd.ms-excel" || 
-		mimeType == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" {
+	} else if isDocumentMime(mimeType) {
 		mediaType = "document"
+		folder = "documents"
 		sizeLimit = 50 * 1024 * 1024 // 50MB
 	} else {
-		// Fallback check based on extension
 		ext := strings.ToLower(filepath.Ext(file.Filename))
-		if ext == ".mp4" || ext == ".webm" {
-			mediaType = "video"
-			if mimeType == "" || mimeType == "application/octet-stream" {
-				if ext == ".mp4" {
-					mimeType = "video/mp4"
-				} else {
-					mimeType = "video/webm"
-				}
-			}
-			sizeLimit = 500 * 1024 * 1024
-		} else if ext == ".pdf" || ext == ".txt" || ext == ".doc" || ext == ".docx" || ext == ".xls" || ext == ".xlsx" {
-			mediaType = "document"
-			if mimeType == "" || mimeType == "application/octet-stream" {
-				switch ext {
-				case ".pdf":
-					mimeType = "application/pdf"
-				case ".txt":
-					mimeType = "text/plain"
-				case ".doc":
-					mimeType = "application/msword"
-				case ".docx":
-					mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-				case ".xls":
-					mimeType = "application/vnd.ms-excel"
-				case ".xlsx":
-					mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-				}
-			}
-			sizeLimit = 50 * 1024 * 1024
-		} else if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".webp" {
-			mediaType = "image"
-			if mimeType == "" || mimeType == "application/octet-stream" {
-				if ext == ".png" {
-					mimeType = "image/png"
-				} else if ext == ".gif" {
-					mimeType = "image/gif"
-				} else if ext == ".webp" {
-					mimeType = "image/webp"
-				} else {
-					mimeType = "image/jpeg"
-				}
-			}
-			sizeLimit = 10 * 1024 * 1024
-		} else {
-			return response.Error(c, fiber.StatusBadRequest, "Unsupported file type", fmt.Sprintf("Mime-type %s not supported", mimeType))
+		mediaType, mimeType, folder, sizeLimit = detectByExt(ext, mimeType)
+		if mediaType == "" {
+			return response.Error(c, fiber.StatusBadRequest, "Unsupported file type",
+				fmt.Sprintf("Mime-type %s not supported", mimeType))
 		}
 	}
 
 	if file.Size > sizeLimit {
-		return response.Error(c, fiber.StatusBadRequest, "File size exceeds limit", fmt.Sprintf("Limit is %d bytes, file is %d bytes", sizeLimit, file.Size))
+		return response.Error(c, fiber.StatusBadRequest, "File size exceeds limit",
+			fmt.Sprintf("Limit is %d bytes, file is %d bytes", sizeLimit, file.Size))
 	}
 
-	if err := os.MkdirAll(h.uploads, 0755); err != nil {
-		return response.Error(c, fiber.StatusInternalServerError, "Failed to create uploads directory", err.Error())
+	src, err := file.Open()
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to open uploaded file", err.Error())
 	}
+	defer src.Close()
 
-	ext := filepath.Ext(file.Filename)
-	uniqueName := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
-	filePath := filepath.Join(h.uploads, uniqueName)
-
-	if err := c.SaveFile(file, filePath); err != nil {
-		return response.Error(c, fiber.StatusInternalServerError, "Failed to save file", err.Error())
-	}
-
-	media := &models.Media{
-		FileName:     file.Filename,
-		URL:          "/uploads/" + uniqueName,
-		ThumbnailURL: "",
-		Status:       "processing",
-		Type:         mediaType,
-		FileSize:     file.Size,
-		MimeType:     mimeType,
-	}
+	storageKey := storage.BuildKey(folder, file.Filename)
 
 	ctx := c.UserContext()
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := h.repo.Insert(ctx, media); err != nil {
-		return response.Error(c, fiber.StatusInternalServerError, "Failed to insert media to database", err.Error())
+
+	if err := h.storage.UploadFile(ctx, storageKey, src, mimeType); err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to upload file to storage", err.Error())
 	}
 
-	if mediaType == "video" {
+	publicURL := h.storage.GetPublicURL(storageKey)
+
+	media := &models.Media{
+		FileName:        file.Filename,
+		URL:             publicURL,
+		StorageProvider: h.storage.DriverName(),
+		StorageKey:      storageKey,
+		Status:          "processing",
+		Type:            mediaType,
+		FileSize:        file.Size,
+		MimeType:        mimeType,
+	}
+
+	// Generate and upload thumbnail synchronously if it's an image
+	if mediaType == "image" {
+		if src, err := file.Open(); err == nil {
+			if thumbBuf, format, err := createThumbnailInMemory(src, 300); err == nil {
+				thumbContentType := "image/jpeg"
+				if format == "png" {
+					thumbContentType = "image/png"
+				}
+				thumbKey := storage.BuildThumbnailKey(storageKey)
+				if err := h.storage.UploadFile(ctx, thumbKey, bytes.NewReader(thumbBuf), thumbContentType); err == nil {
+					media.ThumbnailURL = h.storage.GetPublicURL(thumbKey)
+					media.ThumbnailStorageKey = thumbKey
+				}
+			}
+			src.Close()
+		}
+		// If thumbnail fails or succeeds, we mark image processing as completed synchronously
+		media.Status = "completed"
+	}
+
+	if err := h.repo.Insert(ctx, media); err != nil {
+		// Dọn dẹp storage nếu DB insert fail
+		_ = h.storage.DeleteObject(ctx, storageKey)
+		if media.ThumbnailStorageKey != "" {
+			_ = h.storage.DeleteObject(ctx, media.ThumbnailStorageKey)
+		}
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to save media record", err.Error())
+	}
+
+	// Đẩy vào queue xử lý background (chỉ xử lý video)
+	switch mediaType {
+	case "video":
 		h.videoChan <- media.ID
-	} else if mediaType == "image" {
-		h.imageChan <- media.ID
-	} else {
-		// Documents do not need background thumbnail processing
+	case "image":
+		// Already handled synchronously
+	default:
 		media.Status = "completed"
 		h.repo.Update(ctx, media)
 	}
@@ -172,7 +170,7 @@ func (h *MediaHandler) List(c *fiber.Ctx) error {
 	pageStr := c.Query("page")
 
 	query := make(map[string]interface{})
-	if mediaType == "image" || mediaType == "video" {
+	if mediaType == "image" || mediaType == "video" || mediaType == "document" {
 		query["type"] = mediaType
 	}
 
@@ -191,12 +189,10 @@ func (h *MediaHandler) List(c *fiber.Ctx) error {
 		if err != nil {
 			return response.Error(c, fiber.StatusInternalServerError, "Failed to count media", err.Error())
 		}
-
 		list, err := h.repo.FindWithPagination(ctx, offset, limit, query)
 		if err != nil {
 			return response.Error(c, fiber.StatusInternalServerError, "Failed to retrieve media list", err.Error())
 		}
-
 		return response.Success(c, fiber.StatusOK, fiber.Map{
 			"items": list,
 			"total": total,
@@ -210,7 +206,7 @@ func (h *MediaHandler) List(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to retrieve media list", err.Error())
 	}
 
-	if mediaType == "image" || mediaType == "video" {
+	if mediaType != "" {
 		var filtered []*models.Media
 		for _, m := range list {
 			if m.Type == mediaType {
@@ -224,8 +220,7 @@ func (h *MediaHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *MediaHandler) Detail(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return response.Error(c, fiber.StatusBadRequest, "Invalid media ID", err.Error())
 	}
@@ -238,13 +233,11 @@ func (h *MediaHandler) Detail(c *fiber.Ctx) error {
 	if err != nil {
 		return response.Error(c, fiber.StatusNotFound, "Media not found", err.Error())
 	}
-
 	return response.Success(c, fiber.StatusOK, media, "Media detail retrieved successfully")
 }
 
 func (h *MediaHandler) Delete(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return response.Error(c, fiber.StatusBadRequest, "Invalid media ID", err.Error())
 	}
@@ -259,42 +252,29 @@ func (h *MediaHandler) Delete(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusNotFound, "Media not found", err.Error())
 	}
 
-	// Check if referenced in posts.cover_media_id
-	var postCount int64
-	if err := h.repo.DB.WithContext(ctx).Table("posts").Where("cover_media_id = ? AND deleted_at IS NULL", id).Count(&postCount).Error; err != nil {
-		return response.Error(c, fiber.StatusInternalServerError, "Failed to check post covers", err.Error())
-	}
-	if postCount > 0 {
+	// Kiểm tra media có đang được sử dụng làm cover hoặc trong post gallery không
+	var postCount, galleryCount int64
+	h.repo.DB.WithContext(ctx).Table("posts").Where("cover_media_id = ? AND deleted_at IS NULL", id).Count(&postCount)
+	h.repo.DB.WithContext(ctx).Table("post_media").Where("media_id = ?", id).Count(&galleryCount)
+
+	if postCount > 0 || galleryCount > 0 {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"success": false,
 			"message": "Media đang được sử dụng",
 		})
 	}
 
-	// Check if referenced in post_media.media_id
-	var galleryCount int64
-	if err := h.repo.DB.WithContext(ctx).Table("post_media").Where("media_id = ?", id).Count(&galleryCount).Error; err != nil {
-		return response.Error(c, fiber.StatusInternalServerError, "Failed to check post gallery", err.Error())
-	}
-	if galleryCount > 0 {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"success": false,
-			"message": "Media đang được sử dụng",
-		})
+	// Xóa files khỏi storage (Chỉ xóa nếu storage_provider của record trùng với driver đang chạy, hoặc xóa trực tiếp từ driver nếu cần)
+	// Để đơn giản và an toàn, ta luôn gửi yêu cầu xóa đến driver đang chạy:
+	if media.StorageKey != "" {
+		_ = h.storage.DeleteObject(ctx, media.StorageKey)
 	}
 
-	// Remove files from disk
-	fileNameClean := filepath.Base(media.URL)
-	filePath := filepath.Join(h.uploads, fileNameClean)
-	_ = os.Remove(filePath)
-
-	if media.ThumbnailURL != "" && media.ThumbnailURL != media.URL {
-		thumbClean := filepath.Base(media.ThumbnailURL)
-		thumbPath := filepath.Join(h.uploads, thumbClean)
-		_ = os.Remove(thumbPath)
+	if media.ThumbnailStorageKey != "" && media.ThumbnailStorageKey != media.StorageKey {
+		_ = h.storage.DeleteObject(ctx, media.ThumbnailStorageKey)
 	}
 
-	// Soft delete DB record
+	// Xóa record trong DB
 	if err := h.repo.Delete(ctx, uint(id)); err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Failed to delete media", err.Error())
 	}
@@ -303,6 +283,119 @@ func (h *MediaHandler) Delete(c *fiber.Ctx) error {
 		val := uint(id)
 		h.auditSvc.Log(&userID, "delete_media", "media", &val, nil, c.IP())
 	}
-
 	return response.Success(c, fiber.StatusOK, nil, "Media deleted successfully")
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+func isDocumentMime(mimeType string) bool {
+	docs := []string{
+		"application/pdf",
+		"text/plain",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.ms-excel",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	}
+	for _, d := range docs {
+		if mimeType == d {
+			return true
+		}
+	}
+	return false
+}
+
+func detectByExt(ext, originalMime string) (mediaType, mimeType, folder string, sizeLimit int64) {
+	switch ext {
+	case ".mp4", ".webm":
+		mediaType = "video"
+		folder = "videos"
+		sizeLimit = 500 * 1024 * 1024
+		if originalMime == "" || originalMime == "application/octet-stream" {
+			if ext == ".mp4" {
+				mimeType = "video/mp4"
+			} else {
+				mimeType = "video/webm"
+			}
+		} else {
+			mimeType = originalMime
+		}
+	case ".pdf", ".txt", ".doc", ".docx", ".xls", ".xlsx":
+		mediaType = "document"
+		folder = "documents"
+		sizeLimit = 50 * 1024 * 1024
+		extMimeMap := map[string]string{
+			".pdf":  "application/pdf",
+			".txt":  "text/plain",
+			".doc":  "application/msword",
+			".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			".xls":  "application/vnd.ms-excel",
+			".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		}
+		if originalMime == "" || originalMime == "application/octet-stream" {
+			mimeType = extMimeMap[ext]
+		} else {
+			mimeType = originalMime
+		}
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
+		mediaType = "image"
+		folder = "images"
+		sizeLimit = 10 * 1024 * 1024
+		extMimeMap := map[string]string{
+			".png":  "image/png",
+			".gif":  "image/gif",
+			".webp": "image/webp",
+		}
+		if originalMime == "" || originalMime == "application/octet-stream" {
+			if m, ok := extMimeMap[ext]; ok {
+				mimeType = m
+			} else {
+				mimeType = "image/jpeg"
+			}
+		} else {
+			mimeType = originalMime
+		}
+	}
+	return
+}
+
+func createThumbnailInMemory(r io.Reader, maxWidth int) ([]byte, string, error) {
+	src, format, err := image.Decode(r)
+	if err != nil {
+		return nil, "", fmt.Errorf("decode image: %w", err)
+	}
+
+	bounds := src.Bounds()
+	srcW := bounds.Dx()
+	srcH := bounds.Dy()
+
+	var resized image.Image
+	if srcW <= maxWidth {
+		resized = src
+	} else {
+		newH := (srcH * maxWidth) / srcW
+		dest := image.NewRGBA(image.Rect(0, 0, maxWidth, newH))
+		for y := 0; y < newH; y++ {
+			for x := 0; x < maxWidth; x++ {
+				sx := (x * srcW) / maxWidth
+				sy := (y * srcH) / newH
+				dest.Set(x, y, src.At(bounds.Min.X+sx, bounds.Min.Y+sy))
+			}
+		}
+		resized = dest
+	}
+
+	var buf bytes.Buffer
+	switch format {
+	case "png":
+		if err := png.Encode(&buf, resized); err != nil {
+			return nil, "", err
+		}
+	default:
+		format = "jpeg"
+		if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: 85}); err != nil {
+			return nil, "", err
+		}
+	}
+	return buf.Bytes(), format, nil
 }

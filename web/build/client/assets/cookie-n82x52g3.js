@@ -1,0 +1,1 @@
+function e(e,t,n=365){let r=new Date;r.setTime(r.getTime()+n*24*60*60*1e3);let i=`; expires=`+r.toUTCString();document.cookie=e+`=`+(t||``)+i+`; path=/; SameSite=Lax`}export{e as t};

@@ -1,12 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useLoaderData, useNavigation } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { settingsService, profileService, mediaService, getFullUrl } from '../services/api';
 import { Save, Key, User as UserIcon, Globe, Upload, Loader, Image as ImageIcon, Plus, Trash, X, Palette, RefreshCw } from 'lucide-react';
 
-export async function loader() {
-  return null;
+export async function clientLoader() {
+  try {
+    const res = await settingsService.get();
+    return { settings: res.data || {} };
+  } catch (err) {
+    console.error('Failed to load settings', err);
+    return { settings: {} };
+  }
 }
 
 type TabType = 'site' | 'profile' | 'password';
@@ -16,39 +23,59 @@ export const Settings: React.FC = () => {
   const { showSuccess, showError } = useToast();
   const { colors, updateThemeColors, resetThemeColors } = useTheme();
 
+  const { settings } = useLoaderData() as any;
+
   const [activeTab, setActiveTab] = useState<TabType>('site');
   const [loading, setLoading] = useState(false);
-  const [fetchingSettings, setFetchingSettings] = useState(false);
 
   // Site Config state
-  const [siteName, setSiteName] = useState('');
-  const [siteDescription, setSiteDescription] = useState('');
-  const [logoUrl, setLogoUrl] = useState('');
-  const [commentsEnabled, setCommentsEnabled] = useState(true);
-  const [commentsAutoApprove, setCommentsAutoApprove] = useState(false);
+  const [siteName, setSiteName] = useState(settings?.site_name || '');
+  const [siteDescription, setSiteDescription] = useState(settings?.site_description || '');
+  const [logoUrl, setLogoUrl] = useState(settings?.logo_url || '');
+  const [commentsEnabled, setCommentsEnabled] = useState(settings?.comments_enabled === 'true');
+  const [commentsAutoApprove, setCommentsAutoApprove] = useState(settings?.comments_auto_approve === 'true');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Extended Site settings
-  const [sliderImages, setSliderImages] = useState<string[]>([]);
-  const [footerCopyright, setFooterCopyright] = useState('');
-  const [facebookUrl, setFacebookUrl] = useState('');
-  const [githubUrl, setGithubUrl] = useState('');
-  const [linkedinUrl, setLinkedinUrl] = useState('');
-  const [twitterUrl, setTwitterUrl] = useState('');
+  const initialSliderImages = () => {
+    if (!settings?.slider_images) return [];
+    try {
+      const parsed = JSON.parse(settings.slider_images);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      return settings.slider_images.split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+    return [];
+  };
+  const [sliderImages, setSliderImages] = useState<string[]>(initialSliderImages);
+  
+  const [footerCopyright, setFooterCopyright] = useState(settings?.footer_copyright || '');
+  const [facebookUrl, setFacebookUrl] = useState(settings?.footer_facebook_url || '');
+  const [githubUrl, setGithubUrl] = useState(settings?.footer_github_url || '');
+  const [linkedinUrl, setLinkedinUrl] = useState(settings?.footer_linkedin_url || '');
+  const [twitterUrl, setTwitterUrl] = useState(settings?.footer_twitter_url || '');
   const [mediaList, setMediaList] = useState<any[]>([]);
   const [showMediaModal, setShowMediaModal] = useState(false);
 
   // Global Colors Settings
-  const [themePrimaryColor, setThemePrimaryColor] = useState('#3b82f6');
-  const [themeButtonBg, setThemeButtonBg] = useState('#3b82f6');
-  const [themeTextColor, setThemeTextColor] = useState('#0f172a');
+  const [themePrimaryColor, setThemePrimaryColor] = useState(settings?.theme_primary_color || '#3b82f6');
+  const [themeButtonBg, setThemeButtonBg] = useState(settings?.theme_button_bg || '#3b82f6');
+  const [themeTextColor, setThemeTextColor] = useState(settings?.theme_text_color || '#0f172a');
 
   // Hero Section Settings
-  const [heroKicker, setHeroKicker] = useState('');
-  const [heroTitleLine1, setHeroTitleLine1] = useState('');
-  const [heroTitleLine2, setHeroTitleLine2] = useState('');
-  const [heroSubtitle, setHeroSubtitle] = useState('');
+  const [heroKicker, setHeroKicker] = useState(settings?.hero_kicker || '');
+  const [heroTitleLine1, setHeroTitleLine1] = useState(settings?.hero_title_line1 || '');
+  const [heroTitleLine2, setHeroTitleLine2] = useState(settings?.hero_title_line2 || '');
+  const [heroSubtitle, setHeroSubtitle] = useState(settings?.hero_subtitle || '');
+
+  // Storage Settings State
+  const [storageProvider, setStorageProvider] = useState(settings?.storage_provider || 'local');
+  const [s3Endpoint, setS3Endpoint] = useState(settings?.s3_endpoint || '');
+  const [s3Region, setS3Region] = useState(settings?.s3_region || '');
+  const [s3Bucket, setS3Bucket] = useState(settings?.s3_bucket || '');
+  const [s3AccessKey, setS3AccessKey] = useState(settings?.s3_access_key || '');
+  const [s3SecretKey, setS3SecretKey] = useState(settings?.s3_secret_key || '');
 
   // Profile Info state
   const [profileName, setProfileName] = useState(user?.name || '');
@@ -63,54 +90,6 @@ export const Settings: React.FC = () => {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-
-  // Load site settings on mount
-  useEffect(() => {
-    const loadSettings = async () => {
-      setFetchingSettings(true);
-      try {
-        const res = await settingsService.get();
-        const data = res.data;
-        if (data) {
-          setSiteName(data.site_name || '');
-          setSiteDescription(data.site_description || '');
-          setLogoUrl(data.logo_url || '');
-          setCommentsEnabled(data.comments_enabled === 'true');
-          setCommentsAutoApprove(data.comments_auto_approve === 'true');
-          setFooterCopyright(data.footer_copyright || '');
-          setFacebookUrl(data.footer_facebook_url || '');
-          setGithubUrl(data.footer_github_url || '');
-          setLinkedinUrl(data.footer_linkedin_url || '');
-          setTwitterUrl(data.footer_twitter_url || '');
-          setThemePrimaryColor(data.theme_primary_color || '#3b82f6');
-          setThemeButtonBg(data.theme_button_bg || '#3b82f6');
-          setThemeTextColor(data.theme_text_color || '#0f172a');
-          setHeroKicker(data.hero_kicker || '');
-          setHeroTitleLine1(data.hero_title_line1 || '');
-          setHeroTitleLine2(data.hero_title_line2 || '');
-          setHeroSubtitle(data.hero_subtitle || '');
-
-          if (data.slider_images) {
-            try {
-              const parsed = JSON.parse(data.slider_images);
-              if (Array.isArray(parsed)) {
-                setSliderImages(parsed);
-              }
-            } catch {
-              const split = data.slider_images.split(',').map((s: string) => s.trim()).filter(Boolean);
-              setSliderImages(split);
-            }
-          }
-        }
-      } catch (err: any) {
-        showError(err.response?.data?.message || 'Failed to load site configurations');
-      } finally {
-        setFetchingSettings(false);
-      }
-    };
-
-    loadSettings();
-  }, [showError]);
 
   // Sync profile fields if user object loads asynchronously
   useEffect(() => {
@@ -218,6 +197,12 @@ export const Settings: React.FC = () => {
         hero_title_line1: heroTitleLine1,
         hero_title_line2: heroTitleLine2,
         hero_subtitle: heroSubtitle,
+        storage_provider: storageProvider,
+        s3_endpoint: s3Endpoint,
+        s3_region: s3Region,
+        s3_bucket: s3Bucket,
+        s3_access_key: s3AccessKey,
+        s3_secret_key: s3SecretKey,
       });
 
       document.documentElement.style.setProperty('--primary-color', themePrimaryColor);
@@ -349,13 +334,7 @@ export const Settings: React.FC = () => {
 
       {/* Tab Contents */}
       <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 md:p-8 bg-slate-900/30">
-        {fetchingSettings ? (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-3">
-            <Loader className="w-8 h-8 animate-spin text-accentBlue" />
-            <p className="text-sm">Fetching system settings...</p>
-          </div>
-        ) : (
-          <>
+        <>
             {/* SITE CONFIG TAB */}
             {activeTab === 'site' && (
               <form onSubmit={handleSaveSiteConfig} className="space-y-6 max-w-2xl">
@@ -769,6 +748,81 @@ export const Settings: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Storage Configuration */}
+                <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800/50">
+                  <h4 className="text-sm font-semibold text-slate-850 dark:text-gray-200">Storage Provider Settings</h4>
+                  <p className="text-xs text-gray-500">Configure where files, images, videos, and documents will be saved when uploading media.</p>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Select Storage Driver</label>
+                    <select
+                      value={storageProvider}
+                      onChange={(e) => setStorageProvider(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-850 dark:text-gray-100 focus:outline-none focus:border-accentBlue/60 focus:ring-1 focus:ring-accentBlue/30 text-sm"
+                    >
+                      <option value="local">Local Disk (Lưu trữ trên máy chủ)</option>
+                      <option value="s3">AWS S3 (Amazon Web Services)</option>
+                      <option value="minio">MinIO (Self-hosted Storage)</option>
+                      <option value="cloudfly">Cloudfly Object Storage (Vietnam S3)</option>
+                    </select>
+                  </div>
+
+                  {storageProvider !== 'local' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-xl border border-slate-200/85 dark:border-slate-800/60 space-y-2 md:space-y-0">
+                      <div className="space-y-1.5 md:col-span-2">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">S3 Endpoint</label>
+                        <input
+                          type="text"
+                          value={s3Endpoint}
+                          onChange={(e) => setS3Endpoint(e.target.value)}
+                          placeholder="e.g. https://s3.cloudfly.vn or https://s3.amazonaws.com"
+                          className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-850 dark:text-gray-100 placeholder-slate-400 text-sm focus:outline-none focus:border-accentBlue/60 focus:ring-1"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">S3 Region</label>
+                        <input
+                          type="text"
+                          value={s3Region}
+                          onChange={(e) => setS3Region(e.target.value)}
+                          placeholder="e.g. HN-01 or us-east-1"
+                          className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-850 dark:text-gray-100 placeholder-slate-400 text-sm focus:outline-none focus:border-accentBlue/60 focus:ring-1"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">S3 Bucket Name</label>
+                        <input
+                          type="text"
+                          value={s3Bucket}
+                          onChange={(e) => setS3Bucket(e.target.value)}
+                          placeholder="e.g. my-media-bucket"
+                          className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-850 dark:text-gray-100 placeholder-slate-400 text-sm focus:outline-none focus:border-accentBlue/60 focus:ring-1"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Access Key</label>
+                        <input
+                          type="text"
+                          value={s3AccessKey}
+                          onChange={(e) => setS3AccessKey(e.target.value)}
+                          placeholder="S3 access key ID"
+                          className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-850 dark:text-gray-100 text-sm focus:outline-none focus:border-accentBlue/60 focus:ring-1"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Secret Key</label>
+                        <input
+                          type="password"
+                          value={s3SecretKey}
+                          onChange={(e) => setS3SecretKey(e.target.value)}
+                          placeholder="S3 secret access key"
+                          className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-850 dark:text-gray-100 text-sm focus:outline-none focus:border-accentBlue/60 focus:ring-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="pt-4">
                   <button
                     type="submit"
@@ -944,7 +998,6 @@ export const Settings: React.FC = () => {
               </form>
             )}
           </>
-        )}
       </div>
 
       {showMediaModal && (
@@ -998,5 +1051,24 @@ export const Settings: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div className="h-8 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-1" />
+        </div>
+      </div>
+      <div className="border-b border-slate-200 dark:border-slate-800 flex space-x-8">
+        <div className="h-8 w-24 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mb-2" />
+        <div className="h-8 w-24 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mb-2" />
+        <div className="h-8 w-32 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mb-2" />
+      </div>
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl h-[600px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+    </div>
+  );
+}
 
 export default Settings;

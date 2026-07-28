@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router';
+import { Link, NavLink, Outlet, useRouteLoaderData } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -17,7 +17,8 @@ export const PublicLayout: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [settings, setSettings] = useState<Record<string, string>>({});
+  const loaderData = useRouteLoaderData("root-layout") as { settings?: Record<string, string> };
+  const settings = loaderData?.settings || {};
   const [weatherInfo, setWeatherInfo] = useState<WeatherData | null>(null);
   const [loadingWeather, setLoadingWeather] = useState(true);
 
@@ -78,19 +79,7 @@ export const PublicLayout: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const res = await settingsService.get();
-        if (res.success && res.data) {
-          setSettings(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to load settings', err);
-      }
-    };
-    fetchSettings();
-  }, []);
+
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });

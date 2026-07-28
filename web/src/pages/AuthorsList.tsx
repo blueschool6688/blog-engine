@@ -2,35 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { publicService, getFullUrl } from '../services/api';
 import type { Author } from '../services/api';
 import { Mail, ArrowRight, Info } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useLoaderData, useNavigation } from 'react-router';
 import { useLanguage } from '../context/LanguageContext';
 import { Skeleton } from 'antd';
 
 export async function loader() {
-  return null;
+  try {
+    const res = await publicService.getAuthors();
+    return res.data || [];
+  } catch (err) {
+    return [];
+  }
 }
 
 export const AuthorsList: React.FC = () => {
   const { t } = useLanguage();
-  const [authors, setAuthors] = useState<Author[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const fetchAuthors = async () => {
-      setLoading(true);
-      try {
-        const res = await publicService.getAuthors();
-        if (res.success && res.data) {
-          setAuthors(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch authors', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAuthors();
-  }, []);
+  const authors = useLoaderData() as Author[];
+  const navigation = useNavigation();
+  const loading = navigation.state === "loading";
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 space-y-8">
@@ -118,5 +107,29 @@ export const AuthorsList: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-12 space-y-8">
+      <div>
+        <Skeleton active paragraph={false} title={{ width: '30%' }} />
+        <Skeleton active paragraph={{ rows: 2, width: ['100%', '65%'] }} title={false} />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 bg-white/40 dark:bg-slate-900/30">
+            <div className="flex items-center space-x-4 mb-4">
+              <Skeleton.Avatar active size={64} shape="circle" />
+              <div className="flex-1">
+                <Skeleton active paragraph={{ rows: 1, width: '60%' }} title={{ width: '80%' }} />
+              </div>
+            </div>
+            <Skeleton active paragraph={{ rows: 2 }} title={false} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default AuthorsList;

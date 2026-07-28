@@ -1,0 +1,1 @@
+import{i as e,t}from"./react-B8IZ02wI.js";import{r as n}from"./SizeContext-DdW-bh-o.js";var r=e(t());function i(e){return e&&r.isValidElement(e)&&e.type===r.Fragment}var a=(e,t,i)=>r.isValidElement(e)?r.cloneElement(e,n(i)?i(e.props||{}):i):t;function o(e,t){return a(e,e,t)}export{i as n,a as r,o as t};

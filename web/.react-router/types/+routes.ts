@@ -93,7 +93,7 @@ type RouteFiles = {
     page: "/" | "/posts/:slug" | "/feedback" | "/authors" | "/authors/:nickname" | "/forgot-password" | "/reset-password" | "/system/login" | "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id" | "/*";
   };
   "layouts/RootLayout.tsx": {
-    id: "layouts/RootLayout";
+    id: "root-layout";
     page: "/" | "/posts/:slug" | "/feedback" | "/authors" | "/authors/:nickname" | "/forgot-password" | "/reset-password" | "/system/login" | "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id" | "/*";
   };
   "layouts/PublicLayout.tsx": {
@@ -199,7 +199,7 @@ type RouteFiles = {
 
 type RouteModules = {
   "root": typeof import("./src/root.tsx");
-  "layouts/RootLayout": typeof import("./src/layouts/RootLayout.tsx");
+  "root-layout": typeof import("./src/layouts/RootLayout.tsx");
   "layouts/PublicLayout": typeof import("./src/layouts/PublicLayout.tsx");
   "pages/BlogHome": typeof import("./src/pages/BlogHome.tsx");
   "pages/BlogPostDetail": typeof import("./src/pages/BlogPostDetail.tsx");

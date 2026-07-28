@@ -1,11 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useLoaderData, useSearchParams, useRevalidator, useNavigation } from 'react-router';
 import { commentService } from '../services/api';
 import type { Comment } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { ConfirmModal } from '../components/ConfirmModal';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const statusFilter = url.searchParams.has('status') ? url.searchParams.get('status') : 'pending';
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = 10;
+  const offset = (page - 1) * limit;
+
+  try {
+    const [listRes, countRes] = await Promise.all([
+      commentService.listAll({
+        status: statusFilter || undefined,
+        offset,
+        limit,
+      }),
+      commentService.getPendingCount()
+    ]);
+
+    return {
+      comments: listRes.success ? listRes.data?.items || [] : [],
+      total: listRes.success ? listRes.data?.total || 0 : 0,
+      pendingCount: countRes.success ? countRes.data?.count || 0 : 0
+    };
+  } catch (err) {
+    console.error('Failed to load comments', err);
+    return { comments: [], total: 0, pendingCount: 0 };
+  }
 }
 import {
   MessageSquare,
@@ -19,14 +44,14 @@ import {
 } from 'lucide-react';
 
 export const CommentModeration: React.FC = () => {
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [total, setTotal] = useState(0);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('pending'); // default to pending for moderation priority
+  const { comments, total, pendingCount } = useLoaderData() as any;
+  const { revalidate } = useRevalidator();
+  const navigation = useNavigation();
+  const loading = navigation.state === 'loading';
   
-  // Pagination
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusFilter = searchParams.has('status') ? searchParams.get('status') : 'pending';
+  const page = parseInt(searchParams.get('page') || '1');
   const limit = 10;
 
   // Single delete state
@@ -34,42 +59,13 @@ export const CommentModeration: React.FC = () => {
 
   const { showSuccess, showError } = useToast();
 
-  const fetchComments = async () => {
-    setLoading(true);
-    try {
-      const offset = (page - 1) * limit;
-      const res = await commentService.listAll({
-        status: statusFilter || undefined,
-        offset,
-        limit,
-      });
-      if (res.success && res.data) {
-        setComments(res.data.items || []);
-        setTotal(res.data.total || 0);
-      }
 
-      // Fetch pending count separately
-      const countRes = await commentService.getPendingCount();
-      if (countRes.success && countRes.data) {
-        setPendingCount(countRes.data.count || 0);
-      }
-    } catch (err) {
-      console.error(err);
-      showError('Failed to load comments');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchComments();
-  }, [statusFilter, page]);
 
   const handleApprove = async (id: number) => {
     try {
       await commentService.approve(id);
       showSuccess('Comment approved successfully');
-      fetchComments();
+      revalidate();
     } catch (err) {
       console.error(err);
       showError('Failed to approve comment');
@@ -80,7 +76,7 @@ export const CommentModeration: React.FC = () => {
     try {
       await commentService.reject(id);
       showSuccess('Comment rejected successfully');
-      fetchComments();
+      revalidate();
     } catch (err) {
       console.error(err);
       showError('Failed to reject comment');
@@ -92,7 +88,7 @@ export const CommentModeration: React.FC = () => {
     try {
       await commentService.deleteComment(deleteCommentId);
       showSuccess('Comment deleted permanently');
-      fetchComments();
+      revalidate();
     } catch (err) {
       console.error(err);
       showError('Failed to delete comment');
@@ -144,8 +140,13 @@ export const CommentModeration: React.FC = () => {
                 key={btn.label}
                 type="button"
                 onClick={() => {
-                  setStatusFilter(btn.value);
-                  setPage(1);
+                  setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    if (btn.value) next.set('status', btn.value);
+                    else next.set('status', '');
+                    next.set('page', '1');
+                    return next;
+                  });
                 }}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                   statusFilter === btn.value
@@ -160,7 +161,7 @@ export const CommentModeration: React.FC = () => {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchComments}
+              onClick={() => revalidate()}
               className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200 transition-colors"
               title="Refresh list"
             >
@@ -285,7 +286,13 @@ export const CommentModeration: React.FC = () => {
           <div className="p-4 border-t border-slate-800/50 bg-slate-900/10 flex justify-between items-center">
             <button
               disabled={page === 1}
-              onClick={() => setPage(page - 1)}
+              onClick={() => {
+                setSearchParams(prev => {
+                  const next = new URLSearchParams(prev);
+                  next.set('page', String(page - 1));
+                  return next;
+                });
+              }}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
             >
               Previous
@@ -295,7 +302,13 @@ export const CommentModeration: React.FC = () => {
             </span>
             <button
               disabled={page * limit >= total}
-              onClick={() => setPage(page + 1)}
+              onClick={() => {
+                setSearchParams(prev => {
+                  const next = new URLSearchParams(prev);
+                  next.set('page', String(page + 1));
+                  return next;
+                });
+              }}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
             >
               Next
@@ -306,5 +319,19 @@ export const CommentModeration: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="h-8 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-1" />
+        </div>
+      </div>
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl h-[400px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+    </div>
+  );
+}
 
 export default CommentModeration;

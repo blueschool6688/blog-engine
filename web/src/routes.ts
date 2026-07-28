@@ -1,7 +1,7 @@
 import { type RouteConfig, index, layout, route } from "@react-router/dev/routes";
 
 export default [
-  layout("layouts/RootLayout.tsx", [
+  layout("layouts/RootLayout.tsx", { id: "root-layout" }, [
     layout("layouts/PublicLayout.tsx", [
       index("pages/BlogHome.tsx"),
       route("posts/:slug", "pages/BlogPostDetail.tsx"),

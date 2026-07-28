@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useLoaderData, useSearchParams, useRevalidator } from 'react-router';
 import { Folder, Edit2, Trash2, Plus, RotateCcw, AlertTriangle } from 'lucide-react';
 import { categoryService } from '../services/api';
 import type { Category } from '../services/api';
@@ -7,38 +8,32 @@ import { useLanguage } from '../context/LanguageContext';
 import { Table, Form, Input, Button, Space, Tooltip, Modal, Select, Tabs, Switch, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const includeDeleted = url.searchParams.get('deleted') === 'true';
+  try {
+    const res = await categoryService.list(includeDeleted);
+    return { categories: res.data || [] };
+  } catch (err) {
+    console.error('Failed to load categories', err);
+    return { categories: [] };
+  }
 }
 
 export const Categories: React.FC = () => {
   const { t, language } = useLanguage();
   const { showSuccess, showError } = useToast();
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [showDeleted, setShowDeleted] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const { categories } = useLoaderData() as any;
+  const { revalidate, state } = useRevalidator();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const showDeleted = searchParams.get('deleted') === 'true';
+  
+  const loading = state === 'loading';
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [form] = Form.useForm();
-
-  const loadCategories = async (includeDeleted = showDeleted) => {
-    setLoading(true);
-    try {
-      const res = await categoryService.list(includeDeleted);
-      setCategories(res.data || []);
-    } catch (err) {
-      console.error('Failed to load categories', err);
-      showError('Failed to retrieve categories.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadCategories();
-  }, [showDeleted]);
 
   const handleEdit = (category: Category) => {
     setEditingId(category.id);
@@ -71,7 +66,7 @@ export const Categories: React.FC = () => {
         try {
           await categoryService.delete(id, force);
           showSuccess(force ? 'Category permanently deleted.' : 'Category soft-deleted successfully.');
-          loadCategories();
+          revalidate();
           if (editingId === id) {
             handleCancelEdit();
           }
@@ -87,7 +82,7 @@ export const Categories: React.FC = () => {
     try {
       await categoryService.restore(id);
       showSuccess('Category restored successfully.');
-      loadCategories();
+      revalidate();
     } catch (err: any) {
       console.error(err);
       showError(err.response?.data?.message || 'Failed to restore category.');
@@ -106,14 +101,14 @@ export const Categories: React.FC = () => {
         const res = await categoryService.update(editingId, payload);
         if (res.success) {
           showSuccess('Category updated successfully.');
-          loadCategories();
+          revalidate();
           handleCancelEdit();
         }
       } else {
         const res = await categoryService.create(payload);
         if (res.success) {
           showSuccess('Category created successfully.');
-          loadCategories();
+          revalidate();
           form.resetFields();
         }
       }
@@ -256,7 +251,16 @@ export const Categories: React.FC = () => {
         </div>
         <div className="flex items-center gap-2 bg-white/40 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/60 rounded-xl px-4 py-2 w-fit">
           <span className="text-xs font-semibold text-slate-700 dark:text-gray-300">{t('show_deleted')}</span>
-          <Switch checked={showDeleted} onChange={setShowDeleted} size="small" />
+          <Switch 
+            checked={showDeleted} 
+            onChange={(checked) => {
+              const next = new URLSearchParams(searchParams);
+              if (checked) next.set('deleted', 'true');
+              else next.delete('deleted');
+              setSearchParams(next);
+            }} 
+            size="small" 
+          />
         </div>
       </div>
 
@@ -396,5 +400,25 @@ export const Categories: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
+          <div>
+            <div className="h-6 w-32 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+            <div className="h-4 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-1" />
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl h-[400px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+        <div className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl h-[400px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+      </div>
+    </div>
+  );
+}
 
 export default Categories;

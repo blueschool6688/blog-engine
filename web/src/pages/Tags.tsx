@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useLoaderData, useSearchParams, useRevalidator } from 'react-router';
 import { Tag as TagIcon, Plus, RotateCcw, AlertTriangle } from 'lucide-react';
 import { tagService } from '../services/api';
 import type { Tag } from '../services/api';
@@ -6,37 +7,31 @@ import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Form, Input, Button, Tag as AntdTag, Spin, Modal, Switch, Tooltip } from 'antd';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const includeDeleted = url.searchParams.get('deleted') === 'true';
+  try {
+    const res = await tagService.list(includeDeleted);
+    return { tags: res.data || [] };
+  } catch (err) {
+    console.error('Failed to load tags', err);
+    return { tags: [] };
+  }
 }
 
 export const Tags: React.FC = () => {
   const { t } = useLanguage();
   const { showSuccess, showError } = useToast();
 
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [showDeleted, setShowDeleted] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const { tags } = useLoaderData() as any;
+  const { revalidate, state } = useRevalidator();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const showDeleted = searchParams.get('deleted') === 'true';
+  
+  const loading = state === 'loading';
   const [saving, setSaving] = useState(false);
 
   const [form] = Form.useForm();
-
-  const loadTags = async (includeDeleted = showDeleted) => {
-    setLoading(true);
-    try {
-      const res = await tagService.list(includeDeleted);
-      setTags(res.data || []);
-    } catch (err) {
-      console.error('Failed to load tags', err);
-      showError('Failed to retrieve tags.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadTags();
-  }, [showDeleted]);
 
   const handleCreate = async (values: { name: string }) => {
     const trimmed = values.name.trim();
@@ -46,7 +41,7 @@ export const Tags: React.FC = () => {
     try {
       await tagService.create({ name: trimmed });
       showSuccess(`Tag "${trimmed}" created successfully.`);
-      loadTags();
+      revalidate();
       form.resetFields();
     } catch (err: any) {
       console.error('Failed to create tag', err);
@@ -69,7 +64,7 @@ export const Tags: React.FC = () => {
         try {
           await tagService.delete(id, force);
           showSuccess(force ? `Tag "${name}" permanently deleted.` : `Tag "${name}" soft-deleted.`);
-          loadTags();
+          revalidate();
         } catch (err: any) {
           console.error(err);
           showError(err.response?.data?.message || 'Failed to delete tag.');
@@ -82,7 +77,7 @@ export const Tags: React.FC = () => {
     try {
       await tagService.restore(id);
       showSuccess(`Tag "${name}" restored successfully.`);
-      loadTags();
+      revalidate();
     } catch (err: any) {
       console.error(err);
       showError(err.response?.data?.message || 'Failed to restore tag.');
@@ -109,7 +104,16 @@ export const Tags: React.FC = () => {
         </div>
         <div className="flex items-center gap-2 bg-white/40 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/60 rounded-xl px-4 py-2 w-fit">
           <span className="text-xs font-semibold text-slate-700 dark:text-gray-300">{t('show_deleted')}</span>
-          <Switch checked={showDeleted} onChange={setShowDeleted} size="small" />
+          <Switch 
+            checked={showDeleted} 
+            onChange={(checked) => {
+              const next = new URLSearchParams(searchParams);
+              if (checked) next.set('deleted', 'true');
+              else next.delete('deleted');
+              setSearchParams(next);
+            }} 
+            size="small" 
+          />
         </div>
       </div>
 
@@ -237,5 +241,25 @@ export const Tags: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 select-none">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
+          <div>
+            <div className="h-6 w-32 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+            <div className="h-4 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-1" />
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl h-[220px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+        <div className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl h-[220px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+      </div>
+    </div>
+  );
+}
 
 export default Tags;

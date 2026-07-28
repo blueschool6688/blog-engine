@@ -1,22 +1,20 @@
-version: '3.9'
-
-# ════════════════════════════════════════════════════════════
-# docker-compose.prod.yml — Production overrides
+# ════════════════════════════════════════════════════════════════
+# Blog Engine — Docker Compose Production Overrides
 #
 # Cách dùng:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-#     --env-file .env.docker up -d
+#     --env-file .env.docker up -d --build
 #
-# Trước khi deploy, thay "yourdomain.com" bằng domain thật của bạn
-# ở 2 chỗ:
-#   1. VITE_PUBLIC_API_URL bên dưới
+# Trước khi deploy, thay "yourdomain.com" bằng domain thật:
+#   1. VITE_API_BASE_URL bên dưới
 #   2. nginx/nginx.conf → server_name
-# ════════════════════════════════════════════════════════════
+#   3. APP_URL trong .env.docker
+# ════════════════════════════════════════════════════════════════
 
 services:
 
   api:
-    ports: []          # Ẩn sau Nginx, không expose ra host
+    ports: []                    # Ẩn sau Nginx, không expose ra host
     restart: always
     env_file: .env.docker
     deploy:
@@ -38,48 +36,32 @@ services:
     env_file: .env.docker
 
   web:
-    ports: []          # Ẩn sau Nginx, không expose ra host
+    ports: []                    # Ẩn sau Nginx, không expose ra host
     restart: always
     build:
       args:
-        # URL nội bộ Docker: Node SSR gọi api trong cùng network
-        VITE_API_URL: http://api:8080
-        # URL công khai: Browser JS gọi API → phải là domain thật
-        # ↓↓ THAY "yourdomain.com" BẰNG DOMAIN THẬT CỦA BẠN ↓↓
-        VITE_PUBLIC_API_URL: https://yourdomain.com
+        VITE_API_BASE_URL: https://yourdomain.com/api
+    environment:
+      VITE_API_BASE_URL: https://yourdomain.com/api
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
 
-  db:
-    restart: always
-
-  memcached:
-    restart: always
-
-  # ── Nginx Reverse Proxy ───────────────────────────────────────────
+  # ── Nginx Reverse Proxy ────────────────────────────────────
   nginx:
     image: nginx:alpine
     restart: always
     ports:
-      - "80:80"    # HTTP → redirect 301 → HTTPS
-      - "443:443"  # HTTPS với SSL cert
+      - "80:80"
+      - "443:443"
     volumes:
-      # ↓ nginx.conf đã được cập nhật với server_name yourdomain.com
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      # ↓ Đặt SSL cert tại: nginx/ssl/fullchain.pem và privkey.pem
       - ./nginx/ssl:/etc/nginx/ssl:ro
-      # ↓ Serve file upload tĩnh trực tiếp từ Nginx (nhanh hơn proxy)
       - uploads:/app/uploads:ro
     depends_on:
       - api
       - web
     networks:
       - backend_net
-
-  # Tắt adminer trong production
-  adminer:
-    profiles:
-      - disabled

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet } from 'react-router';
+import { Outlet, useLoaderData } from 'react-router';
 import { AuthProvider } from '../context/AuthContext';
 import { ToastProvider } from '../context/ToastContext';
 import { LanguageProvider } from '../context/LanguageContext';
@@ -17,8 +17,22 @@ const queryClient = new QueryClient({
   },
 });
 
+export async function loader() {
+  try {
+    const res = await settingsService.getPublic();
+    if (res.success && res.data) {
+      return { settings: res.data };
+    }
+  } catch (err) {
+    console.error('Failed to load global colors', err);
+  }
+  return { settings: {} };
+}
+
 export const RootLayout: React.FC = () => {
-  const [primaryColor, setPrimaryColor] = useState('#3b82f6');
+  const loaderData = useLoaderData() as { settings?: Record<string, string> };
+  const settings = loaderData?.settings || {};
+  const [primaryColor, setPrimaryColor] = useState(settings.theme_primary_color || '#3b82f6');
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -31,28 +45,16 @@ export const RootLayout: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const fetchGlobalTheme = async () => {
-      try {
-        const res = await settingsService.get();
-        if (res.success && res.data) {
-          const s = res.data;
-          if (s.theme_primary_color) {
-            setPrimaryColor(s.theme_primary_color);
-            document.documentElement.style.setProperty('--primary-color', s.theme_primary_color);
-          }
-          if (s.theme_button_bg) {
-            document.documentElement.style.setProperty('--btn-bg', s.theme_button_bg);
-          }
-          if (s.theme_text_color) {
-            document.documentElement.style.setProperty('--text-color', s.theme_text_color);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load global colors', err);
-      }
-    };
-    fetchGlobalTheme();
-  }, []);
+    if (settings.theme_primary_color) {
+      document.documentElement.style.setProperty('--primary-color', settings.theme_primary_color);
+    }
+    if (settings.theme_button_bg) {
+      document.documentElement.style.setProperty('--btn-bg', settings.theme_button_bg);
+    }
+    if (settings.theme_text_color) {
+      document.documentElement.style.setProperty('--text-color', settings.theme_text_color);
+    }
+  }, [settings]);
 
   return (
     <QueryClientProvider client={queryClient}>

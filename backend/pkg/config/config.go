@@ -37,6 +37,13 @@ type Config struct {
 	DiscordPublicKey   string
 	DiscordBotSecret   string
 	DiscordAuthorID    uint
+	// Storage config
+	StorageProvider string // local, s3, minio, cloudfly
+	S3Endpoint      string
+	S3Region        string
+	S3Bucket        string
+	S3AccessKey     string
+	S3SecretKey     string
 }
 
 func Load() *Config {
@@ -75,6 +82,12 @@ func Load() *Config {
 		DiscordPublicKey:   getEnv("DISCORD_PUBLIC_KEY", ""),
 		DiscordBotSecret:   getEnv("DISCORD_BOT_SECRET", ""),
 		DiscordAuthorID:    uint(getEnvInt("DISCORD_AUTHOR_ID", 1)),
+		StorageProvider: getEnv("STORAGE_PROVIDER", "local"),
+		S3Endpoint:      getEnv("S3_ENDPOINT", ""),
+		S3Region:        getEnv("S3_REGION", "HN-01"),
+		S3Bucket:        getEnv("S3_BUCKET", ""),
+		S3AccessKey:     getEnv("S3_ACCESS_KEY", ""),
+		S3SecretKey:     getEnv("S3_SECRET_KEY", ""),
 	}
 }
 

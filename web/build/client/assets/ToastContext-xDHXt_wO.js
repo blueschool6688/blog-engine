@@ -1,0 +1,12 @@
+import{i as e,t}from"./react-B8IZ02wI.js";import{t as n}from"./jsx-runtime-fBfwind-.js";import{t as r}from"./circle-alert-C5688MrR.js";import{t as i}from"./circle-check-big-BLyM-AW-.js";import{t as a}from"./triangle-alert-1tLOcRvi.js";import{t as o}from"./x-joRAMor3.js";var s=e(t(),1),c=n(),l=(0,s.createContext)(null),u=({children:e})=>{let[t,n]=(0,s.useState)([]),u=(0,s.useCallback)((e,t)=>{let r=Math.random().toString(36).substring(2,9);n(n=>[...n,{id:r,type:e,message:t}]),setTimeout(()=>{n(e=>e.filter(e=>e.id!==r))},4e3)},[]),d=(0,s.useCallback)(e=>{n(t=>t.filter(t=>t.id!==e))},[]),f=(0,s.useCallback)(e=>u(`success`,e),[u]),p=(0,s.useCallback)(e=>u(`error`,e),[u]),m=(0,s.useCallback)(e=>u(`warning`,e),[u]);return(0,c.jsxs)(l.Provider,{value:{showSuccess:f,showError:p,showWarning:m},children:[e,(0,c.jsx)(`div`,{className:`fixed bottom-5 right-5 z-[9999] flex flex-col gap-3 max-w-md w-full pointer-events-none px-4 sm:px-0`,children:t.map(e=>{let t=``,n=``,s=``,l=i;switch(e.type){case`success`:t=`bg-emerald-950/95 text-emerald-100`,n=`border-emerald-500/30`,s=`text-emerald-400 hover:text-emerald-200`,l=i;break;case`error`:t=`bg-rose-950/95 text-rose-100`,n=`border-rose-500/30`,s=`text-rose-400 hover:text-rose-200`,l=r;break;case`warning`:t=`bg-amber-950/95 text-amber-100`,n=`border-amber-500/30`,s=`text-amber-400 hover:text-amber-200`,l=a;break}return(0,c.jsxs)(`div`,{className:`pointer-events-auto flex items-start gap-3 p-4 rounded-xl border backdrop-blur-md shadow-2xl transition-all duration-300 transform translate-y-0 ${t} ${n}`,style:{animation:`toastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards`},children:[(0,c.jsx)(l,{className:`w-5 h-5 flex-shrink-0 mt-0.5 text-current`}),(0,c.jsx)(`div`,{className:`flex-1 text-sm font-medium leading-5`,children:e.message}),(0,c.jsx)(`button`,{onClick:()=>d(e.id),className:`p-1 rounded-lg hover:bg-white/10 transition-colors ${s}`,children:(0,c.jsx)(o,{className:`w-4 h-4`})})]},e.id)})}),(0,c.jsx)(`style`,{children:`
+        @keyframes toastSlideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `})]})},d=()=>{let e=(0,s.useContext)(l);if(!e)throw Error(`useToast must be used within a ToastProvider`);return e};export{d as n,u as t};

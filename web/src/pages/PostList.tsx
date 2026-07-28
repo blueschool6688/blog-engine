@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useLoaderData, useSearchParams, useNavigation } from 'react-router';
 import { Plus, Edit2, Trash2, Star, Search, RotateCcw, AlertTriangle, FileText } from 'lucide-react';
 import { postService, categoryService, tagService, getFullUrl } from '../services/api';
 import type { Post, Category, Tag } from '../services/api';
@@ -8,8 +8,36 @@ import { useLanguage } from '../context/LanguageContext';
 import { Table, Button, Input, Select, Modal, Space, Tag as AntdTag, Tooltip, Switch, Badge } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const searchParams = url.searchParams;
+  
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = 10;
+  const offset = (page - 1) * limit;
+  const statusFilter = searchParams.get('status') || '';
+  const searchFilter = searchParams.get('search') || '';
+  const categoryFilter = searchParams.get('category') ? Number(searchParams.get('category')) : undefined;
+  const tagFilter = searchParams.get('tag') ? Number(searchParams.get('tag')) : undefined;
+  const showDeleted = searchParams.get('deleted') === 'true';
+
+  try {
+    const [postsRes, catRes, tagRes] = await Promise.all([
+      postService.list(offset, limit, statusFilter, searchFilter, categoryFilter, tagFilter, undefined, showDeleted),
+      categoryService.list(),
+      tagService.list()
+    ]);
+    
+    return {
+      posts: postsRes.data.items || [],
+      total: postsRes.data.total || 0,
+      categories: catRes.data || [],
+      tags: tagRes.data || []
+    };
+  } catch (err) {
+    console.error('Failed to load posts or filters', err);
+    return { posts: [], total: 0, categories: [], tags: [] };
+  }
 }
 
 export const PostList: React.FC = () => {
@@ -17,82 +45,46 @@ export const PostList: React.FC = () => {
   const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
 
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [showDeleted, setShowDeleted] = useState(false);
+  const { posts, total, categories: allCategories, tags: allTags } = useLoaderData() as any;
+  const navigation = useNavigation();
+  const loading = navigation.state === "loading";
 
-  // Filters
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [categoryFilter, setCategoryFilter] = useState<number | undefined>(undefined);
-  const [tagFilter, setTagFilter] = useState<number | undefined>(undefined);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentPage = parseInt(searchParams.get('page') || '1');
+  const statusFilter = searchParams.get('status') || '';
+  const categoryFilter = searchParams.get('category') ? Number(searchParams.get('category')) : undefined;
+  const tagFilter = searchParams.get('tag') ? Number(searchParams.get('tag')) : undefined;
+  const searchQuery = searchParams.get('search') || '';
+  const showDeleted = searchParams.get('deleted') === 'true';
   const limit = 10;
 
-  const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const updateFilters = (updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [k, v] of Object.entries(updates)) {
+      if (v === null || v === '') {
+        next.delete(k);
+      } else {
+        next.set(k, v);
+      }
+    }
+    // Always reset to page 1 when filtering, unless page is explicitly being updated
+    if (!updates.page) {
+      next.set('page', '1');
+    }
+    setSearchParams(next);
+  };
+
+  const [searchInput, setSearchInput] = useState(searchQuery);
+
+  useEffect(() => {
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
 
   // Selection & Modal states
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [deletePostId, setDeletePostId] = useState<number | null>(null);
   const [isForceDelete, setIsForceDelete] = useState(false);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
-
-  // Fetch categories & tags for filters
-  useEffect(() => {
-    const fetchFilters = async () => {
-      try {
-        const [catRes, tagRes] = await Promise.all([
-          categoryService.list(),
-          tagService.list()
-        ]);
-        setAllCategories(catRes.data || []);
-        setAllTags(tagRes.data || []);
-      } catch (err) {
-        console.error('Failed to load filter options', err);
-      }
-    };
-    fetchFilters();
-  }, []);
-
-  // Debounce search
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-      setCurrentPage(1);
-    }, 400);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
-
-  const fetchPosts = async () => {
-    setLoading(true);
-    try {
-      const offset = (currentPage - 1) * limit;
-      const response = await postService.list(
-        offset,
-        limit,
-        statusFilter,
-        debouncedSearchQuery,
-        categoryFilter,
-        tagFilter,
-        undefined,
-        showDeleted
-      );
-      setPosts(response.data.items || []);
-      setTotal(response.data.total || 0);
-    } catch (err) {
-      console.error('Failed to load posts', err);
-      showError('Failed to load posts');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPosts();
-  }, [currentPage, statusFilter, debouncedSearchQuery, categoryFilter, tagFilter, showDeleted]);
 
   // Bulk actions
   const handleBulkAction = async (action: 'publish' | 'draft' | 'delete') => {
@@ -109,7 +101,8 @@ export const PostList: React.FC = () => {
         showSuccess(`Selected posts status updated to ${action}`);
       }
       setSelectedRowKeys([]);
-      fetchPosts();
+      // fetchPosts() logic triggers URL reload
+      navigation.state === "idle" && navigate(0);
     } catch (err) {
       console.error('Bulk action failed', err);
       showError('Failed to complete bulk action');
@@ -125,7 +118,7 @@ export const PostList: React.FC = () => {
       await postService.delete(deletePostId, isForceDelete);
       showSuccess(isForceDelete ? 'Post permanently deleted.' : 'Post soft-deleted successfully.');
       setDeletePostId(null);
-      fetchPosts();
+      navigation.state === "idle" && navigate(0);
     } catch (err: any) {
       console.error(err);
       showError(err.response?.data?.message || 'Failed to delete post');
@@ -136,7 +129,7 @@ export const PostList: React.FC = () => {
     try {
       await postService.restore(id);
       showSuccess('Post restored successfully.');
-      fetchPosts();
+      navigation.state === "idle" && navigate(0);
     } catch (err: any) {
       console.error(err);
       showError(err.response?.data?.message || 'Failed to restore post');
@@ -327,7 +320,7 @@ export const PostList: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-white/40 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/60 rounded-xl px-4 py-2 w-fit">
             <span className="text-xs font-semibold text-slate-700 dark:text-gray-300">{t('show_deleted')}</span>
-            <Switch checked={showDeleted} onChange={setShowDeleted} size="small" />
+            <Switch checked={showDeleted} onChange={(checked) => updateFilters({ deleted: checked ? 'true' : null })} size="small" />
           </div>
           <Link
             to="/admin/posts/new"
@@ -392,7 +385,7 @@ export const PostList: React.FC = () => {
             {/* Status select */}
             <Select
               value={statusFilter}
-              onChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}
+              onChange={(val) => updateFilters({ status: val })}
               options={[
                 { label: t('filter_all'), value: '' },
                 { label: t('filter_published'), value: 'published' },
@@ -406,10 +399,10 @@ export const PostList: React.FC = () => {
               placeholder={t('all_categories')}
               allowClear
               value={categoryFilter}
-              onChange={(val) => { setCategoryFilter(val); setCurrentPage(1); }}
+              onChange={(val) => updateFilters({ category: val ? String(val) : null })}
               className="w-44 h-9"
             >
-              {allCategories.map(cat => (
+              {allCategories.map((cat: Category) => (
                 <Select.Option key={cat.id} value={cat.id}>{cat.name}</Select.Option>
               ))}
             </Select>
@@ -419,10 +412,10 @@ export const PostList: React.FC = () => {
               placeholder={t('all_tags')}
               allowClear
               value={tagFilter}
-              onChange={(val) => { setTagFilter(val); setCurrentPage(1); }}
+              onChange={(val) => updateFilters({ tag: val ? String(val) : null })}
               className="w-40 h-9"
             >
-              {allTags.map(tag => (
+              {allTags.map((tag: Tag) => (
                 <Select.Option key={tag.id} value={tag.id}>{tag.name}</Select.Option>
               ))}
             </Select>
@@ -433,8 +426,13 @@ export const PostList: React.FC = () => {
             <Input
               placeholder={t('search_posts_placeholder')}
               prefix={<Search className="w-3.5 h-3.5 text-gray-500 mr-1" />}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  updateFilters({ search: searchInput || null });
+                }
+              }}
               className="w-full lg:w-64 h-9 rounded-xl"
             />
             <div className="text-xs text-gray-500 shrink-0 font-mono">{t('total')}: {total}</div>
@@ -452,7 +450,7 @@ export const PostList: React.FC = () => {
             current: currentPage,
             pageSize: limit,
             total: total,
-            onChange: (page) => setCurrentPage(page),
+            onChange: (page) => updateFilters({ page: String(page) }),
             showSizeChanger: false,
             className: "select-none"
           }}
@@ -486,5 +484,21 @@ export const PostList: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <div className="h-8 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
+          <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-2"></div>
+        </div>
+      </div>
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl p-4 space-y-4">
+        <div className="h-[400px] bg-slate-200 dark:bg-slate-800/50 rounded-xl animate-pulse"></div>
+      </div>
+    </div>
+  );
+}
 
 export default PostList;

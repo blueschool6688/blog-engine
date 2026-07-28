@@ -1,49 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useLoaderData, useSearchParams, useRevalidator, useNavigation } from 'react-router';
 import { feedbackService } from '../services/api';
 import type { Feedback } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { MessageSquare, Star, Trash2, CheckCircle2, Archive, Loader, RefreshCw } from 'lucide-react';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const statusFilter = url.searchParams.get('status') || '';
+  const limit = 15;
+  const offset = 0; // Pagination can be added later
+
+  try {
+    const res = await feedbackService.listFeedbacks({
+      status: statusFilter || undefined,
+      offset,
+      limit,
+    });
+    if (res.success && res.data) {
+      return { feedbacks: res.data.items || [] };
+    }
+  } catch (err: any) {
+    console.error('Failed to fetch feedbacks', err);
+  }
+  return { feedbacks: [] };
 }
 
 export const FeedbacksAdmin: React.FC = () => {
   const { showSuccess, showError } = useToast();
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [offset, setOffset] = useState(0);
-  const limit = 15;
+  
+  const { feedbacks } = useLoaderData() as { feedbacks: Feedback[] };
+  const { revalidate } = useRevalidator();
+  const navigation = useNavigation();
+  const loading = navigation.state === 'loading';
 
-  const fetchFeedbacks = async () => {
-    setLoading(true);
-    try {
-      const res = await feedbackService.listFeedbacks({
-        status: statusFilter || undefined,
-        offset,
-        limit,
-      });
-      if (res.success && res.data) {
-        setFeedbacks(res.data.items || []);
-      }
-    } catch (err: any) {
-      showError(err.response?.data?.message || 'Failed to fetch feedbacks');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchFeedbacks();
-  }, [statusFilter, offset]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status') || '';
 
   const handleUpdateStatus = async (id: number, status: 'reviewed' | 'archived') => {
     try {
       const res = await feedbackService.updateFeedbackStatus(id, status);
       if (res.success) {
         showSuccess(`Feedback marked as ${status}`);
-        setFeedbacks(feedbacks.map((fb) => (fb.id === id ? res.data : fb)));
+        revalidate();
       }
     } catch (err: any) {
       showError(err.response?.data?.message || 'Failed to update feedback status');
@@ -56,7 +55,7 @@ export const FeedbacksAdmin: React.FC = () => {
       const res = await feedbackService.deleteFeedback(id);
       if (res.success) {
         showSuccess('Feedback deleted successfully');
-        setFeedbacks(feedbacks.filter((fb) => fb.id !== id));
+        revalidate();
       }
     } catch (err: any) {
       showError(err.response?.data?.message || 'Failed to delete feedback');
@@ -88,8 +87,12 @@ export const FeedbacksAdmin: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setOffset(0);
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                if (e.target.value) next.set('status', e.target.value);
+                else next.delete('status');
+                return next;
+              });
             }}
             className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-750 dark:text-gray-250 rounded-xl text-sm focus:outline-none"
           >
@@ -100,7 +103,7 @@ export const FeedbacksAdmin: React.FC = () => {
           </select>
 
           <button
-            onClick={fetchFeedbacks}
+            onClick={() => revalidate()}
             disabled={loading}
             className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700/50 rounded-xl text-slate-500 dark:text-gray-400 hover:text-slate-850 dark:hover:text-gray-200 transition-all disabled:opacity-50"
             title="Refresh feedbacks"
@@ -231,5 +234,19 @@ export const FeedbacksAdmin: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="h-8 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-1" />
+        </div>
+      </div>
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl h-[400px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+    </div>
+  );
+}
 
 export default FeedbacksAdmin;

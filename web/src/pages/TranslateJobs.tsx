@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect } from 'react';
+import { useLoaderData, useSearchParams, useRevalidator, useNavigation } from 'react-router';
 import { Table, Button, Card, Tag, Space, Modal, Tooltip, message } from 'antd';
 import { Languages, RefreshCw, Trash2, Clock, CheckCircle, AlertCircle, Play } from 'lucide-react';
 import { translateService } from '../services/api';
@@ -6,65 +7,67 @@ import type { TranslateJob } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import dayjs from 'dayjs';
 
-export const TranslateJobs: React.FC = () => {
-  const { language } = useLanguage();
-  const [jobs, setJobs] = useState<TranslateJob[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const page = parseInt(url.searchParams.get('page') || '1');
   const limit = 10;
+  const offset = (page - 1) * limit;
 
-  // Metric counts
-  const [metrics, setMetrics] = useState({
-    pending: 0,
-    processing: 0,
-    done: 0,
-    failed: 0,
-  });
+  try {
+    const res = await translateService.listJobs({ offset, limit });
+    if (res.success && res.data) {
+      const items = res.data.items || [];
+      const total = res.data.total || 0;
+      const pendingCount = items.filter((j: any) => j.status === 'pending').length;
+      const processingCount = items.filter((j: any) => j.status === 'processing').length;
+      const doneCount = items.filter((j: any) => j.status === 'done').length;
+      const failedCount = items.filter((j: any) => j.status === 'failed').length;
 
-  const loadJobs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const offset = (page - 1) * limit;
-      const res = await translateService.listJobs({ offset, limit });
-      if (res.success && res.data) {
-        setJobs(res.data.items || []);
-        setTotal(res.data.total || 0);
-
-        // Recalculate metrics from current list (for simplicity, or we can poll count)
-        const items = res.data.items || [];
-        const pendingCount = items.filter(j => j.status === 'pending').length;
-        const processingCount = items.filter(j => j.status === 'processing').length;
-        const doneCount = items.filter(j => j.status === 'done').length;
-        const failedCount = items.filter(j => j.status === 'failed').length;
-        setMetrics({
+      return {
+        jobs: items,
+        total,
+        metrics: {
           pending: pendingCount,
           processing: processingCount,
           done: doneCount,
           failed: failedCount,
-        });
-      }
-    } catch (err: any) {
-      console.error(err);
-      message.error(language === 'vi' ? 'Không thể tải danh sách tiến trình dịch.' : 'Failed to load translation jobs.');
-    } finally {
-      setLoading(false);
+        }
+      };
     }
-  }, [page, language]);
+  } catch (err) {
+    console.error('Failed to load translate jobs', err);
+  }
+  return {
+    jobs: [],
+    total: 0,
+    metrics: { pending: 0, processing: 0, done: 0, failed: 0 }
+  };
+}
+export const TranslateJobs: React.FC = () => {
+  const { language } = useLanguage();
+  const { jobs, total, metrics } = useLoaderData() as any;
+  const { revalidate } = useRevalidator();
+  const navigation = useNavigation();
+  const loading = navigation.state === 'loading';
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = 10;
 
   useEffect(() => {
-    loadJobs();
     // Auto-refresh every 5 seconds to show progress
-    const interval = setInterval(loadJobs, 5000);
+    const interval = setInterval(() => {
+      revalidate();
+    }, 5000);
     return () => clearInterval(interval);
-  }, [loadJobs]);
+  }, [revalidate]);
 
   const handleRetry = async (jobId: string) => {
     try {
       const res = await translateService.retryJob(jobId);
       if (res.success) {
         message.success(language === 'vi' ? 'Đã kích hoạt thử lại thành công!' : 'Job retry triggered successfully!');
-        loadJobs();
+        revalidate();
       }
     } catch (err: any) {
       console.error(err);
@@ -86,7 +89,7 @@ export const TranslateJobs: React.FC = () => {
           const res = await translateService.deleteJob(jobId);
           if (res.success) {
             message.success(language === 'vi' ? 'Đã xóa tiến trình thành công!' : 'Job deleted successfully!');
-            loadJobs();
+            revalidate();
           }
         } catch (err: any) {
           console.error(err);
@@ -260,7 +263,7 @@ export const TranslateJobs: React.FC = () => {
           <Button
             type="primary"
             icon={<RefreshCw className="w-4 h-4" />}
-            onClick={loadJobs}
+            onClick={() => revalidate()}
             loading={loading}
             className="bg-btn-global border-0 rounded-xl"
           >
@@ -277,7 +280,13 @@ export const TranslateJobs: React.FC = () => {
             current: page,
             pageSize: limit,
             total: total,
-            onChange: (p) => setPage(p),
+            onChange: (p) => {
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                next.set('page', String(p));
+                return next;
+              });
+            },
             showSizeChanger: false,
           }}
           className="premium-table"
@@ -286,5 +295,18 @@ export const TranslateJobs: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6 select-none">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl h-[90px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+        ))}
+      </div>
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl h-[400px] animate-pulse bg-slate-200 dark:bg-slate-800/50" />
+    </div>
+  );
+}
 
 export default TranslateJobs;

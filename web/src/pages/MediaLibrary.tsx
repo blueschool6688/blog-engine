@@ -1,11 +1,32 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useLoaderData, useSearchParams, useRevalidator, useNavigation } from 'react-router';
 import { mediaService, getFullUrl } from '../services/api';
 import type { Media } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { ConfirmModal } from '../components/ConfirmModal';
 
-export async function loader() {
-  return null;
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const typeFilter = url.searchParams.get('type') || '';
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = 12;
+  
+  try {
+    const res = await mediaService.list({
+      type: typeFilter as any,
+      page,
+      limit,
+    });
+    const responseData = res.data;
+    if (responseData && typeof responseData === 'object' && 'items' in responseData) {
+      return { media: responseData.items || [], total: responseData.total || 0 };
+    } else if (Array.isArray(responseData)) {
+      return { media: responseData, total: responseData.length };
+    }
+  } catch (err) {
+    console.error('Failed to load media library', err);
+  }
+  return { media: [], total: 0 };
 }
 import {
   Image as ImageIcon,
@@ -22,16 +43,17 @@ import {
 } from 'lucide-react';
 
 export const MediaLibrary: React.FC = () => {
-  const [mediaList, setMediaList] = useState<Media[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<'image' | 'video' | ''>('');
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const { media: mediaList, total } = useLoaderData() as any;
+  const { revalidate, state } = useRevalidator();
+  const navigation = useNavigation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const typeFilter = searchParams.get('type') || '';
+  const page = parseInt(searchParams.get('page') || '1');
   const limit = 12;
+  const loading = navigation.state === 'loading';
+
+  const [uploading, setUploading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
   const [previewMedia, setPreviewMedia] = useState<Media | null>(null);
@@ -65,35 +87,7 @@ export const MediaLibrary: React.FC = () => {
     });
   }, []);
 
-  const fetchMedia = async () => {
-    setLoading(true);
-    try {
-      const res = await mediaService.list({
-        type: typeFilter,
-        page,
-        limit,
-      });
-      // Response format: res.data might be { items: Media[], total: number } or Media[] depending on API design.
-      // In api.ts: list: async (params) => api.get<APIResponse<Media[] & { items?: Media[]; total?: number }>>(...)
-      const responseData = res.data;
-      if (responseData && typeof responseData === 'object' && 'items' in responseData) {
-        setMediaList(responseData.items || []);
-        setTotal(responseData.total || 0);
-      } else if (Array.isArray(responseData)) {
-        setMediaList(responseData);
-        setTotal(responseData.length);
-      }
-    } catch (err) {
-      console.error('Failed to load media library', err);
-      showError('Failed to load media library');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMedia();
-  }, [typeFilter, page]);
+  // Initialization and plugins fetching remains
 
   // Handle file uploads
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,8 +141,12 @@ export const MediaLibrary: React.FC = () => {
 
     if (successCount > 0) {
       showSuccess(`Successfully uploaded ${successCount} files`);
-      setPage(1);
-      fetchMedia();
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('page', '1');
+        return next;
+      });
+      revalidate();
     }
     if (failCount > 0) {
       showError(`Failed to upload ${failCount} files`);
@@ -164,7 +162,7 @@ export const MediaLibrary: React.FC = () => {
     try {
       await mediaService.delete(deleteMedia.id);
       showSuccess('Media file deleted successfully');
-      setMediaList(mediaList.filter((m) => m.id !== deleteMedia.id));
+      revalidate();
     } catch (err: any) {
       console.error('Failed to delete media', err);
       // In case of GORM association blockage (409 Conflict)
@@ -196,8 +194,12 @@ export const MediaLibrary: React.FC = () => {
       }
       if (successCount > 0) {
         showSuccess(`Uploaded ${successCount} files via Drag & Drop`);
-        setPage(1);
-        fetchMedia();
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.set('page', '1');
+          return next;
+        });
+        revalidate();
       }
     } catch (err) {
       console.error(err);
@@ -372,8 +374,13 @@ export const MediaLibrary: React.FC = () => {
               key={btn.label}
               type="button"
               onClick={() => {
-                setTypeFilter(btn.value as any);
-                setPage(1);
+                setSearchParams(prev => {
+                  const next = new URLSearchParams(prev);
+                  if (btn.value) next.set('type', btn.value);
+                  else next.delete('type');
+                  next.set('page', '1');
+                  return next;
+                });
               }}
               className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                 typeFilter === btn.value
@@ -401,7 +408,7 @@ export const MediaLibrary: React.FC = () => {
             />
           </div>
           <button
-            onClick={fetchMedia}
+            onClick={() => revalidate()}
             className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200 transition-colors"
             title="Refresh"
           >
@@ -530,7 +537,13 @@ export const MediaLibrary: React.FC = () => {
         <div className="p-4 bg-slate-950/30 border border-slate-800/40 rounded-2xl flex justify-between items-center">
           <button
             disabled={page === 1}
-            onClick={() => setPage(page - 1)}
+            onClick={() => {
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                next.set('page', String(page - 1));
+                return next;
+              });
+            }}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
           >
             Previous
@@ -540,7 +553,13 @@ export const MediaLibrary: React.FC = () => {
           </span>
           <button
             disabled={page * limit >= total}
-            onClick={() => setPage(page + 1)}
+            onClick={() => {
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                next.set('page', String(page + 1));
+                return next;
+              });
+            }}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
           >
             Next
@@ -560,5 +579,23 @@ export const MediaLibrary: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="h-8 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mt-1" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
+        {[...Array(12)].map((_, i) => (
+          <div key={i} className="aspect-square bg-slate-200 dark:bg-slate-800 rounded-2xl animate-pulse" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default MediaLibrary;

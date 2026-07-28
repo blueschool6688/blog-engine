@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLoaderData, useNavigation } from 'react-router';
 import {
   FileText,
   Image as ImageIcon,
@@ -27,8 +26,27 @@ import { dashboardService, getFullUrl } from '../services/api';
 import type { Post } from '../services/api';
 import { Skeleton } from 'antd';
 
-export async function loader() {
-  return null;
+export async function clientLoader() {
+  try {
+    const res = await dashboardService.getStats();
+    if (res.success && res.data) {
+      return res.data;
+    }
+  } catch (err) {
+    console.error('Failed to load dashboard stats', err);
+  }
+  return {
+    total_posts: 0,
+    published_posts: 0,
+    draft_posts: 0,
+    media_count: 0,
+    category_count: 0,
+    tag_count: 0,
+    storage_usage_mb: 0,
+    posts_by_month: [],
+    views_by_day: [],
+    recent_posts: [],
+  };
 }
 
 interface DashboardStatsState {
@@ -45,47 +63,22 @@ interface DashboardStatsState {
 }
 
 export const Dashboard: React.FC = () => {
-  const [stats, setStats] = useState<DashboardStatsState>({
-    totalPosts: 0,
-    publishedPosts: 0,
-    draftPosts: 0,
-    mediaCount: 0,
-    categoryCount: 0,
-    tagCount: 0,
-    storageUsageMB: 0,
-    postsByMonth: [],
-    viewsByDay: [],
-    recentPosts: [],
-  });
-  const [loading, setLoading] = useState(true);
+  const data = useLoaderData() as any;
+  const navigation = useNavigation();
+  const loading = navigation.state === "loading";
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await dashboardService.getStats();
-        if (res.success && res.data) {
-          const d = res.data;
-          setStats({
-            totalPosts: d.total_posts,
-            publishedPosts: d.published_posts,
-            draftPosts: d.draft_posts,
-            mediaCount: d.media_count,
-            categoryCount: d.category_count,
-            tagCount: d.tag_count,
-            storageUsageMB: d.storage_usage_mb,
-            postsByMonth: d.posts_by_month,
-            viewsByDay: d.views_by_day || [],
-            recentPosts: d.recent_posts || [],
-          });
-        }
-      } catch (err) {
-        console.error('Failed to load dashboard stats', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
-  }, []);
+  const stats = {
+    totalPosts: data.total_posts || 0,
+    publishedPosts: data.published_posts || 0,
+    draftPosts: data.draft_posts || 0,
+    mediaCount: data.media_count || 0,
+    categoryCount: data.category_count || 0,
+    tagCount: data.tag_count || 0,
+    storageUsageMB: data.storage_usage_mb || 0,
+    postsByMonth: data.posts_by_month || [],
+    viewsByDay: data.views_by_day || [],
+    recentPosts: data.recent_posts || [],
+  };
 
   const statCards = [
     {
@@ -362,5 +355,32 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
+
+export function HydrateFallback() {
+  return (
+    <div className="space-y-8">
+      <div>
+        <Skeleton active paragraph={false} title={{ width: '200px' }} />
+        <Skeleton active paragraph={{ rows: 1, width: '300px' }} title={false} className="mt-1" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {[...Array(7)].map((_, i) => (
+          <div key={i} className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6">
+            <Skeleton active paragraph={false} title={{ width: '80%' }} />
+            <Skeleton active paragraph={{ rows: 1, width: '40%' }} title={false} className="mt-2" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 h-[400px]">
+          <Skeleton active paragraph={{ rows: 8 }} title={{ width: '40%' }} />
+        </div>
+        <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 h-[400px]">
+          <Skeleton active paragraph={{ rows: 6 }} title={{ width: '40%' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default Dashboard;
