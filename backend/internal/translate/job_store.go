@@ -25,6 +25,12 @@ type JobStore interface {
 	ClaimNextJob(ctx context.Context) (*TranslateJobRow, error)
 	// UpdateJobResult cập nhật kết quả và trạng thái của job sau khi xử lý xong.
 	UpdateJobResult(ctx context.Context, jobID string, result AsyncJobResult) error
+	// ListJobs lấy danh sách job phân trang
+	ListJobs(ctx context.Context, offset, limit int) ([]*TranslateJobRow, int64, error)
+	// RetryJob đặt lại trạng thái job về pending để chạy lại
+	RetryJob(ctx context.Context, jobID string) error
+	// DeleteJob xóa job khỏi DB
+	DeleteJob(ctx context.Context, jobID string) error
 }
 
 // TranslateJobRow là GORM model cho bảng "translate_jobs".
@@ -158,6 +164,53 @@ func (s *PostgresJobStore) UpdateJobResult(ctx context.Context, jobID string, re
 
 	if err != nil {
 		return fmt.Errorf("update job result: %w", err)
+	}
+	return nil
+}
+
+// ListJobs lấy danh sách job phân trang từ PostgreSQL.
+func (s *PostgresJobStore) ListJobs(ctx context.Context, offset, limit int) ([]*TranslateJobRow, int64, error) {
+	var jobs []*TranslateJobRow
+	var total int64
+
+	db := s.db.WithContext(ctx).Model(&TranslateJobRow{})
+
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count translate jobs: %w", err)
+	}
+
+	if err := db.Order("created_at DESC").Offset(offset).Limit(limit).Find(&jobs).Error; err != nil {
+		return nil, 0, fmt.Errorf("find translate jobs: %w", err)
+	}
+
+	return jobs, total, nil
+}
+
+// RetryJob đặt lại trạng thái job về pending.
+func (s *PostgresJobStore) RetryJob(ctx context.Context, jobID string) error {
+	err := s.db.WithContext(ctx).
+		Model(&TranslateJobRow{}).
+		Where("job_id = ?", jobID).
+		Updates(map[string]interface{}{
+			"status":     string(JobPending),
+			"result":     "",
+			"updated_at": time.Now(),
+		}).Error
+
+	if err != nil {
+		return fmt.Errorf("retry translate job: %w", err)
+	}
+	return nil
+}
+
+// DeleteJob xóa hẳn job khỏi database.
+func (s *PostgresJobStore) DeleteJob(ctx context.Context, jobID string) error {
+	err := s.db.WithContext(ctx).
+		Where("job_id = ?", jobID).
+		Delete(&TranslateJobRow{}).Error
+
+	if err != nil {
+		return fmt.Errorf("delete translate job: %w", err)
 	}
 	return nil
 }

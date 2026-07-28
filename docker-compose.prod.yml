@@ -1,0 +1,71 @@
+# Production override — layer on top of docker-compose.yml
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This file:
+#   - Removes exposed ports from api/web (Nginx handles traffic)
+#   - Adds Nginx reverse proxy with SSL
+#   - Sets resource limits
+#   - Disables adminer
+version: '3.9'
+
+services:
+
+  api:
+    ports: []    # Hidden behind Nginx
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  worker:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  web:
+    ports: []    # Hidden behind Nginx
+    restart: always
+    build:
+      args:
+        VITE_API_URL: http://api:8080
+        # ← Change to your actual domain:
+        VITE_PUBLIC_API_URL: https://yourdomain.com
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  db:
+    restart: always
+
+  memcached:
+    restart: always
+
+  # ── Nginx Reverse Proxy ───────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - uploads:/app/uploads:ro
+    depends_on:
+      - api
+      - web
+    networks:
+      - backend_net
+
+  # Disable adminer in production
+  adminer:
+    profiles:
+      - disabled

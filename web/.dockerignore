@@ -1,0 +1,32 @@
+# Web — Docker build context exclusions
+
+# Dependencies (re-installed in Docker)
+node_modules/
+
+# Build outputs
+build/
+dist/
+.react-router/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment files (passed via ARG/ENV in Docker)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# Docs
+*.md
+README*
+
+# OS
+.DS_Store
+Thumbs.db

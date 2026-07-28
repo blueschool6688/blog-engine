@@ -3,8 +3,14 @@ import { Link, NavLink, Outlet } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
-import { LayoutDashboard, LogIn, Sun, Moon, ArrowUp, Menu, X } from 'lucide-react';
+import { LayoutDashboard, LogIn, Sun, Moon, ArrowUp, Menu, X, MapPin, CloudSun, CloudRain } from 'lucide-react';
 import { settingsService, getFullUrl } from '../services/api';
+
+interface WeatherData {
+  city: string;
+  temp: number;
+  code: number;
+}
 
 export const PublicLayout: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -12,6 +18,8 @@ export const PublicLayout: React.FC = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [weatherInfo, setWeatherInfo] = useState<WeatherData | null>(null);
+  const [loadingWeather, setLoadingWeather] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -19,6 +27,55 @@ export const PublicLayout: React.FC = () => {
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Fetch Location & Weather (Open-Meteo & IP Geolocation)
+  useEffect(() => {
+    const fetchWeather = async (lat: number, lon: number, cityName: string) => {
+      try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+        const data = await res.json();
+        if (data && data.current_weather) {
+          setWeatherInfo({
+            city: cityName,
+            temp: Math.round(data.current_weather.temperature),
+            code: data.current_weather.weathercode,
+          });
+        }
+      } catch (e) {
+        console.error('Failed to fetch weather', e);
+      } finally {
+        setLoadingWeather(false);
+      }
+    };
+
+    const fallbackIPLocation = async () => {
+      try {
+        const ipRes = await fetch('https://ipapi.co/json/');
+        const ipData = await ipRes.json();
+        if (ipData && ipData.latitude && ipData.longitude) {
+          await fetchWeather(ipData.latitude, ipData.longitude, ipData.city || 'TP HCM');
+        } else {
+          await fetchWeather(10.8231, 106.6297, 'TP HCM');
+        }
+      } catch {
+        await fetchWeather(10.8231, 106.6297, 'TP HCM');
+      }
+    };
+
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          await fetchWeather(position.coords.latitude, position.coords.longitude, 'Vị trí của bạn');
+        },
+        () => {
+          fallbackIPLocation();
+        },
+        { timeout: 5000 }
+      );
+    } else {
+      fallbackIPLocation();
+    }
   }, []);
 
   useEffect(() => {
@@ -41,13 +98,20 @@ export const PublicLayout: React.FC = () => {
 
   const { language, setLanguage, t } = useLanguage();
 
+  const formattedDate = new Date().toLocaleDateString(language === 'vi' ? 'vi-VN' : 'en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+  });
+
   const getSiteName = () => {
     return settings.site_name || 'Blogs';
   };
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0D0E14] text-slate-800 dark:text-gray-200 flex flex-col transition-colors duration-300 selection:bg-accentBlue/25 selection:text-accentBlue">
-      <header className="sticky top-0 z-50 w-full backdrop-blur-xl bg-white/85 dark:bg-[#0D0E14]/90 border-b border-slate-200/80 dark:border-slate-800/60 shadow-sm transition-all duration-300">
+    <div className="min-h-screen text-slate-900 dark:text-slate-5 flex flex-col transition-colors duration-300 selection:bg-accentBlue/25 selection:text-accentBlue" style={{ backgroundColor: theme === 'dark' ? 'var(--custom-dark-bg)' : 'var(--custom-light-bg)' }}>
+      <header className="sticky top-0 z-50 w-full backdrop-blur-xl bg-white/85 dark:bg-[#090D16]/90 border-b border-slate-200/80 dark:border-slate-800/60 shadow-sm transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[60px] flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2.5 group shrink-0" onClick={() => setMobileMenuOpen(false)}>
             {settings.logo_url ? (
@@ -68,7 +132,7 @@ export const PublicLayout: React.FC = () => {
               </span>
             </div>
             <span className="font-extrabold text-lg leading-none tracking-tight">
-              <span className="">{getSiteName()}</span>
+              <span className="text-slate-600 dark:text-slate-50">{getSiteName()}</span>
             </span>
           </Link>
 
@@ -93,6 +157,33 @@ export const PublicLayout: React.FC = () => {
               </NavLink>
             ))}
           </nav>
+
+          <div className="hidden lg:flex items-center gap-3 px-3 py-1 bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50 rounded-xl text-xs select-none">
+            {/* Location & Weather */}
+            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium">
+              <MapPin className="w-3.5 h-3.5 text-accentBlue" />
+              <span>{weatherInfo ? weatherInfo.city : (loadingWeather ? '...' : 'TP HCM')}</span>
+              {weatherInfo?.temp !== undefined ? (
+                <div className="flex items-center gap-1 ml-1 text-slate-800 dark:text-slate-100 font-bold">
+                  {weatherInfo.code <= 3 ? (
+                    <Sun className="w-3.5 h-3.5 text-amber-500" />
+                  ) : weatherInfo.code >= 51 ? (
+                    <CloudRain className="w-3.5 h-3.5 text-blue-400" />
+                  ) : (
+                    <CloudSun className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                  <span>{weatherInfo.temp}°C</span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="w-px h-3.5 bg-slate-300 dark:bg-slate-700" />
+
+            {/* Date info */}
+            <div className="text-slate-500 dark:text-gray-400 font-semibold capitalize text-[11px]">
+              {formattedDate}
+            </div>
+          </div>
 
           <div className="flex items-center gap-2">
             <button
@@ -144,7 +235,7 @@ export const PublicLayout: React.FC = () => {
 
         {/* Mobile Drawer Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800/60 bg-white dark:bg-[#0D0E14] px-4 py-4 space-y-2 animate-fade-in">
+          <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800/60 bg-white dark:bg-[#090D16] px-4 py-4 space-y-2 animate-fade-in">
             {[
               { name: t('articles'), path: '/' },
               { name: t('authors'), path: '/authors' },
@@ -191,7 +282,7 @@ export const PublicLayout: React.FC = () => {
         <Outlet />
       </main>
 
-      <footer className="bg-white dark:bg-[#0A0B10] border-t border-slate-200/80 dark:border-slate-800/60 relative z-10 transition-colors duration-300">
+      <footer className="bg-white dark:bg-[#06080F] border-t border-slate-200/80 dark:border-slate-800/60 relative z-10 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 border-t border-slate-200/60 dark:border-slate-800/40 grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 space-y-4">
             <Link to="/" className="flex items-center gap-2">

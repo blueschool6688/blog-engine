@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router';
 import { publicService, getFullUrl } from '../services/api';
 import type { Author, Post } from '../services/api';
-import { Mail, Calendar, Eye, Loader, ChevronLeft, ChevronRight, User as UserIcon, BookOpen } from 'lucide-react';
+import { Mail, Calendar, Eye, ChevronLeft, ChevronRight, User as UserIcon, BookOpen } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { Skeleton } from 'antd';
 
 export async function loader() {
   return null;
@@ -16,8 +17,8 @@ export const AuthorDetail: React.FC = () => {
   const [author, setAuthor] = useState<Author | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [totalPosts, setTotalPosts] = useState(0);
-  const [loadingAuthor, setLoadingAuthor] = useState(false);
-  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [loadingAuthor, setLoadingAuthor] = useState(true);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   const [page, setPage] = useState(1);
   const limit = 6;
 
@@ -88,9 +89,29 @@ export const AuthorDetail: React.FC = () => {
       </div>
 
       {loadingAuthor ? (
-        <div className="py-20 text-center animate-pulse">
-          <Loader className="w-10 h-10 animate-spin text-accentBlue mx-auto" />
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{t('loading')}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          {/* sidebar skeleton */}
+          <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 space-y-6 bg-white/40 dark:bg-slate-900/30">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <Skeleton.Avatar active size={112} shape="circle" />
+              <Skeleton active paragraph={{ rows: 2, width: ['70%', '50%'] }} title={{ width: '60%' }} />
+            </div>
+            <Skeleton active paragraph={{ rows: 4 }} />
+          </div>
+          {/* posts skeleton */}
+          <div className="lg:col-span-2 space-y-4">
+            <Skeleton active paragraph={false} title={{ width: '40%' }} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="p-5 bg-white dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl">
+                  <div className="aspect-[16/10] rounded-xl overflow-hidden mb-4">
+                    <Skeleton.Image active style={{ width: '100%', height: '100%' }} className="!w-full !h-full" />
+                  </div>
+                  <Skeleton active paragraph={{ rows: 2 }} title />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       ) : !author ? (
         <div className="py-12 text-center text-gray-500">
@@ -101,7 +122,7 @@ export const AuthorDetail: React.FC = () => {
           <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 space-y-6 bg-white/40 dark:bg-slate-900/30 lg:sticky lg:top-[90px]">
             <div className="flex flex-col items-center text-center space-y-4">
               <div className="w-28 h-28 rounded-full border-4 border-accentBlue/20 overflow-hidden flex items-center justify-center bg-slate-100 dark:bg-slate-950/40 shadow-xl">
-                {author.avatar_url ? (
+                {author?.avatar_url ? (
                   <img
                     src={getFullUrl(author.avatar_url)}
                     alt={author.name}
@@ -109,13 +130,13 @@ export const AuthorDetail: React.FC = () => {
                   />
                 ) : (
                   <span className="font-bold text-accentBlue text-4xl">
-                    {author.name.charAt(0).toUpperCase()}
+                    {author?.name.charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
 
               <div>
-                <h2 className="text-2xl font-bold text-slate-850 dark:text-white">{author.name}</h2>
+                <h2 className="text-2xl font-bold text-slate-850 dark:text-white">{author?.name}</h2>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800/50 text-[10px] text-gray-500 dark:text-gray-400 font-semibold tracking-wider uppercase mt-2 select-none">
                   <UserIcon className="w-3 h-3" />
                   <span>{language === 'vi' ? 'Tác giả / Thành viên' : 'Author / Contributor'}</span>
@@ -123,11 +144,11 @@ export const AuthorDetail: React.FC = () => {
               </div>
 
               <a
-                href={`mailto:${author.email}`}
+                href={`mailto:${author?.email}`}
                 className="flex items-center space-x-2 text-xs text-accentBlue hover:underline py-1.5 px-4 bg-accentBlue/5 rounded-xl transition-all"
               >
                 <Mail className="w-4 h-4" />
-                <span>{author.email}</span>
+                <span>{author?.email}</span>
               </a>
             </div>
 
@@ -138,7 +159,7 @@ export const AuthorDetail: React.FC = () => {
                 {t('biography')}
               </h3>
               <p className="text-sm text-slate-700 dark:text-gray-300 leading-relaxed">
-                {author.bio || t('no_bio')}
+                {author?.bio || t('no_bio')}
               </p>
             </div>
           </div>
@@ -148,7 +169,7 @@ export const AuthorDetail: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <BookOpen className="w-5 h-5 text-accentPurple" />
                 <h3 className="text-sm md:text-base font-bold text-slate-850 dark:text-white">
-                  {t('articles_written_by')} {author.name.split(' ')[0]}
+                  {t('articles_written_by')} {author?.name ? author.name.split(' ')[0] : ''}
                 </h3>
               </div>
               <div className="flex items-center gap-3 select-none">
@@ -159,18 +180,20 @@ export const AuthorDetail: React.FC = () => {
             </div>
 
             {loadingPosts ? (
-              <div className="py-20 text-center animate-pulse">
-                <Loader className="w-8 h-8 animate-spin text-accentBlue mx-auto" />
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{t('loading')}</p>
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="py-16 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">{t('no_posts')}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="p-5 bg-white dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl">
+                    <div className="aspect-[16/10] rounded-xl overflow-hidden mb-4">
+                      <Skeleton.Image active style={{ width: '100%', height: '100%' }} className="!w-full !h-full" />
+                    </div>
+                    <Skeleton active paragraph={{ rows: 2 }} title />
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {posts.map((post) => {
-                  const coverUrl = post.cover_media?.url || `https://picsum.photos/seed/${post.slug}/800/500`;
+                  const coverUrl = post.cover_media?.url;
 
                   return (
                     <article
@@ -178,13 +201,12 @@ export const AuthorDetail: React.FC = () => {
                       className="group flex flex-col justify-between p-5 bg-white dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl hover:border-accentBlue/30 dark:hover:border-accentBlue/20 hover:shadow-lg transition-all duration-200 bg-white/40 dark:bg-slate-900/30"
                     >
                       <div className="space-y-4">
-                        {/* Thumbnail */}
                         <Link
                           to={`/posts/${post.slug}`}
                           className="block aspect-[16/10] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800/60"
                         >
                           <img
-                            src={getFullUrl(coverUrl)}
+                            src={getFullUrl(coverUrl || '')}
                             alt={post.title}
                             className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
                             loading="lazy"
@@ -206,11 +228,11 @@ export const AuthorDetail: React.FC = () => {
                           </div>
 
                           <h4 className="text-base font-extrabold text-slate-850 dark:text-white line-clamp-2 group-hover:text-accentBlue transition-colors leading-snug">
-                            <Link to={`/posts/${post.slug}`}>{post.title}</Link>
+                            <Link to={`/posts/${post.slug}`}>{language === 'en' ? (post.title_en || post.title) : post.title}</Link>
                           </h4>
 
                           <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
-                            {post.excerpt || 'Read full article...'}
+                            {language === 'en' ? (post.excerpt_en || post.excerpt || 'Read full article...') : (post.excerpt || 'Đọc toàn bộ bài viết...')}
                           </p>
                         </div>
                       </div>

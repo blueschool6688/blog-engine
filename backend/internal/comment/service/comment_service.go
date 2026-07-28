@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
 
+	"backend/internal/aigenerate"
 	"backend/internal/comment/models"
 	"backend/internal/comment/repository"
 
@@ -17,17 +19,20 @@ type CommentService struct {
 	commentRepo  *repository.CommentRepository
 	reactionRepo *repository.ReactionRepository
 	db           *gorm.DB
+	aiSvc        *aigenerate.Service
 }
 
 func NewCommentService(
 	commentRepo *repository.CommentRepository,
 	reactionRepo *repository.ReactionRepository,
 	db *gorm.DB,
+	aiSvc *aigenerate.Service,
 ) *CommentService {
 	return &CommentService{
 		commentRepo:  commentRepo,
 		reactionRepo: reactionRepo,
 		db:           db,
+		aiSvc:        aiSvc,
 	}
 }
 
@@ -75,6 +80,19 @@ func (s *CommentService) CreateComment(ctx context.Context, postID uint, name, e
 		status = "approved"
 	}
 
+	var spamScore *float64
+	if s.aiSvc != nil {
+		spamCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		if spamRes, err := s.aiSvc.ScoreSpam(spamCtx, name, content); err == nil && spamRes != nil {
+			spamScore = &spamRes.SpamScore
+			if *spamScore >= 0.85 {
+				status = "rejected"
+			}
+		}
+	}
+
 	comment := &models.Comment{
 		PostID:      postID,
 		ParentID:    parentID,
@@ -83,6 +101,7 @@ func (s *CommentService) CreateComment(ctx context.Context, postID uint, name, e
 		Content:     content,
 		Status:      status,
 		IPAddress:   ip,
+		SpamScore:   spamScore,
 	}
 
 	if err := s.commentRepo.Create(ctx, comment); err != nil {

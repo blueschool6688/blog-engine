@@ -1,0 +1,38 @@
+# Backend — Docker build context exclusions
+# Prevents large/sensitive files from being sent to Docker daemon
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+api.exe
+cms.exe
+worker.exe
+
+# Dev/debug artifacts
+tmp/
+scratch/
+*.log
+
+# Upload data (mounted via volume in production)
+uploads/
+
+# Dev tooling config
+.air.toml
+air.sh
+run_air.bat
+
+# Build artifacts from local builds
+storages/
+
+# Docs and scripts (not needed in container)
+Makefile
+*.md
+*.sh
+*.bat
+scripts/
+
+# Git
+.git
+.gitignore

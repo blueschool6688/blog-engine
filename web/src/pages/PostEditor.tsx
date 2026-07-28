@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
-import { ArrowLeft, Save, Image as ImageIcon, Trash, FileText } from 'lucide-react';
-import { postService, mediaService, categoryService, tagService, getFullUrl } from '../services/api';
+import { ArrowLeft, Save, Image as ImageIcon, Trash, FileText, Languages, Sparkles } from 'lucide-react';
+import { postService, mediaService, categoryService, tagService, translateService, aiService, getFullUrl } from '../services/api';
 import type { Media, Category, Tag } from '../services/api';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { GalleryUploader } from '../components/GalleryUploader';
@@ -15,7 +15,7 @@ export async function loader() {
 }
 
 export const PostEditor: React.FC = () => {
-  useLanguage();
+  const { t } = useLanguage();
   const { id } = useParams<{ id?: string }>();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -43,6 +43,229 @@ export const PostEditor: React.FC = () => {
   const [metaTitleVal, setMetaTitleVal] = useState('');
   const [metaDescVal, setMetaDescVal] = useState('');
   const [isDocVal, setIsDocVal] = useState(false);
+
+  // Auto-translate states & functions
+  const [translating, setTranslating] = useState(false);
+  const [translateProgressText, setTranslateProgressText] = useState('');
+
+  // AI Generate & Summarize states
+  const [aiModalVisible, setAiModalVisible] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [aiTopic, setAiTopic] = useState('');
+  const [summarizing, setSummarizing] = useState(false);
+
+  const [extracting, setExtracting] = useState(false);
+  const [scoringSEO, setScoringSEO] = useState(false);
+  const [seoScore, setSeoScore] = useState<number | null>(null);
+  const [seoGrade, setSeoGrade] = useState<string>('');
+  const [seoSuggestions, setSeoSuggestions] = useState<string[]>([]);
+
+  const translateText = async (text: string, targetLang: 'vi' | 'en'): Promise<string> => {
+    if (!text || !text.trim()) return '';
+    const res = await translateService.translate({ content: text, target_lang: targetLang });
+    if (!res.success || !res.data) {
+      throw new Error(res.message || 'Translation failed');
+    }
+    
+    const result = res.data;
+    if (result.job_id) {
+      const jobId = result.job_id;
+      return new Promise<string>((resolve, reject) => {
+        const interval = setInterval(async () => {
+          try {
+            const pollRes = await translateService.pollJob(jobId);
+            if (pollRes.success && pollRes.data) {
+              if (pollRes.data.status === 'done') {
+                clearInterval(interval);
+                resolve(pollRes.data.translated_text || '');
+              } else if (pollRes.data.status === 'failed') {
+                clearInterval(interval);
+                reject(new Error(pollRes.data.error || 'Async translation job failed'));
+              }
+            }
+          } catch (err) {
+            // Keep polling on temporary errors
+          }
+        }, 2000);
+      });
+    }
+    return result.translated_text;
+  };
+
+  const handleAutoTranslate = async () => {
+    const values = form.getFieldsValue();
+    const titleVi = values.title;
+    const excerptVi = values.excerpt;
+    const contentVi = values.content;
+
+    if (!titleVi && !excerptVi && !contentVi) {
+      showError(t('fill_fields') || 'Vui lòng nhập nội dung Tiếng Việt trước khi dịch.');
+      return;
+    }
+
+    setTranslating(true);
+    try {
+      if (titleVi) {
+        setTranslateProgressText(t('table_title') || 'Tiêu đề');
+        const titleEn = await translateText(titleVi, 'en');
+        form.setFieldsValue({ title_en: titleEn });
+      }
+      if (excerptVi) {
+        setTranslateProgressText(t('editor_excerpt_label') || 'Tóm tắt');
+        const excerptEn = await translateText(excerptVi, 'en');
+        form.setFieldsValue({ excerpt_en: excerptEn });
+      }
+      if (contentVi) {
+        setTranslateProgressText(t('editor_content_label') || 'Nội dung');
+        const contentEn = await translateText(contentVi, 'en');
+        form.setFieldsValue({ content_en: contentEn });
+      }
+      showSuccess(t('editor_translate_success') || 'Đã dịch tự động sang Tiếng Anh thành công!');
+    } catch (err: any) {
+      console.error(err);
+      showError((t('editor_translate_error') || 'Gặp lỗi khi dịch tự động: ') + (err.message || err.toString()));
+    } finally {
+      setTranslating(false);
+      setTranslateProgressText('');
+    }
+  };
+
+  const handleAIGenerate = async () => {
+    if (!aiTopic.trim()) {
+      showError('Vui lòng nhập chủ đề bài viết!');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const res = await aiService.generatePost(aiTopic);
+      if (res.success && res.data) {
+        const postData = res.data;
+        form.setFieldsValue({
+          title: postData.title_vi,
+          title_en: postData.title_en,
+          content: postData.content_vi,
+          content_en: postData.content_en,
+          meta_title: postData.meta_title_vi,
+          meta_desc: postData.meta_desc_vi,
+          excerpt: postData.excerpt_vi,
+          excerpt_en: postData.excerpt_en,
+        });
+
+        setTitleVal(postData.title_vi);
+        setExcerptVal(postData.excerpt_vi);
+        setMetaTitleVal(postData.meta_title_vi);
+        setMetaDescVal(postData.meta_desc_vi);
+
+        if (postData.suggested_tags && postData.suggested_tags.length > 0) {
+          const matchedTagIds: number[] = [];
+          postData.suggested_tags.forEach((tagName) => {
+            const matched = allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+            if (matched) {
+              matchedTagIds.push(matched.id);
+            }
+          });
+          if (matchedTagIds.length > 0) {
+            form.setFieldsValue({ tag_ids: matchedTagIds });
+          }
+        }
+
+        showSuccess('Tạo bài viết nháp thành công bằng AI!');
+        setAiModalVisible(false);
+        setAiTopic('');
+      } else {
+        showError(res.message || 'Không thể tạo bài viết.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showError('Gặp lỗi khi tạo bài viết bằng AI: ' + (err.response?.data?.message || err.message || err.toString()));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleAISummarize = async () => {
+    const values = form.getFieldsValue();
+    const contentVi = values.content;
+
+    if (!contentVi || !contentVi.trim()) {
+      showError('Cần có nội dung Tiếng Việt để tóm tắt!');
+      return;
+    }
+
+    setSummarizing(true);
+    try {
+      const res = await aiService.summarize(contentVi, 'both');
+      if (res.success && res.data) {
+        form.setFieldsValue({
+          excerpt: res.data.summary,
+          excerpt_en: res.data.summary_en || '',
+        });
+        setExcerptVal(res.data.summary);
+        showSuccess('Đã tóm tắt nội dung bằng AI thành công!');
+      } else {
+        showError(res.message || 'Không thể tóm tắt nội dung.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showError('Gặp lỗi khi tóm tắt: ' + (err.response?.data?.message || err.message || err.toString()));
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
+  const handleExtractKeywords = async () => {
+    const content = form.getFieldValue('content');
+    if (!content) {
+      showError('Please write some content first to extract keywords.');
+      return;
+    }
+    setExtracting(true);
+    try {
+      const res = await aiService.extractKeywords(content, 'vi');
+      if (res.success && res.data) {
+        const keywords = res.data.keywords;
+        const matchedTagIds: number[] = [];
+        keywords.forEach((tagName) => {
+          const matched = allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+          if (matched) {
+            matchedTagIds.push(matched.id);
+          }
+        });
+        
+        const currentTagIds = form.getFieldValue('tag_ids') || [];
+        form.setFieldsValue({ tag_ids: Array.from(new Set([...currentTagIds, ...matchedTagIds])) });
+        
+        showSuccess('Keywords extracted successfully!');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showError('Failed to extract keywords.');
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleScoreSEO = async () => {
+    const title = form.getFieldValue('title') || '';
+    const metaDesc = form.getFieldValue('meta_desc') || '';
+    const content = form.getFieldValue('content') || '';
+    
+    setScoringSEO(true);
+    try {
+      const res = await aiService.scoreSEO(title, metaDesc, content);
+      if (res.success && res.data) {
+        setSeoScore(res.data.score);
+        setSeoGrade(res.data.grade);
+        setSeoSuggestions(res.data.suggestions || []);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showError('Failed to score SEO.');
+    } finally {
+      setScoringSEO(false);
+    }
+  };
 
   useEffect(() => {
     const fetchOptions = async () => {
@@ -173,8 +396,6 @@ export const PostEditor: React.FC = () => {
     }
   };
 
-
-
   if (fetching) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -196,10 +417,20 @@ export const PostEditor: React.FC = () => {
           </Link>
           <div>
             <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-              {isEdit ? 'Chỉnh sửa bài viết' : 'Tạo bài viết mới'}
+              {isEdit ? t('editor_edit_title') : t('editor_create_title')}
             </h1>
             <p className="text-xs text-gray-500 mt-1">Viết, tối ưu hóa SEO và quản lý các loại bài đăng.</p>
           </div>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Button
+            type="primary"
+            onClick={() => setAiModalVisible(true)}
+            icon={<Sparkles className="w-4 h-4" />}
+            className="bg-gradient-to-r from-accentBlue to-accentPurple hover:brightness-110 border-0 rounded-xl flex items-center gap-1.5 h-10 text-sm font-bold shadow-md shadow-accentBlue/10"
+          >
+            Generate with AI
+          </Button>
         </div>
       </div>
 
@@ -214,10 +445,10 @@ export const PostEditor: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
             <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
               <Tabs defaultActiveKey="vi" className="border-b border-slate-200 dark:border-slate-800/60 mb-4">
-                <Tabs.TabPane tab="Tiếng Việt (Bản dịch chính)" key="vi">
+                <Tabs.TabPane tab={t('editor_vietnamese_tab')} key="vi">
                   <div className="space-y-4 pt-2">
                     <Form.Item
-                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tiêu đề bài viết (VI)</span>}
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_title_vi')}</span>}
                       name="title"
                       rules={[{ required: true, message: 'Please input Vietnamese title!' }]}
                     >
@@ -231,7 +462,7 @@ export const PostEditor: React.FC = () => {
                     <Form.Item
                       label={
                         <div className="flex flex-col">
-                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Đường dẫn Slug VI</span>
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_slug_vi')}</span>
                           <span className="text-[10px] text-gray-500 font-normal">Tự động tạo từ tiêu đề nếu để trống</span>
                         </div>
                       }
@@ -245,7 +476,21 @@ export const PostEditor: React.FC = () => {
                     </Form.Item>
 
                     <Form.Item
-                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tóm tắt ngắn (VI)</span>}
+                      label={
+                        <div className="flex justify-between items-center w-full">
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_excerpt_vi')}</span>
+                          <Button
+                            type="text"
+                            size="small"
+                            loading={summarizing}
+                            onClick={handleAISummarize}
+                            icon={<Sparkles className="w-3.5 h-3.5 text-accentBlue" />}
+                            className="text-accentBlue hover:text-accentPurple text-xs flex items-center gap-1 p-0 h-auto font-bold"
+                          >
+                            AI Summarize
+                          </Button>
+                        </div>
+                      }
                       name="excerpt"
                     >
                       <Input.TextArea
@@ -257,7 +502,7 @@ export const PostEditor: React.FC = () => {
                     </Form.Item>
 
                     <Form.Item
-                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nội dung bài viết (VI)</span>}
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_content_vi')}</span>}
                       name="content"
                     >
                       <RichTextEditor
@@ -268,10 +513,22 @@ export const PostEditor: React.FC = () => {
                   </div>
                 </Tabs.TabPane>
 
-                <Tabs.TabPane tab="English (Translation)" key="en">
+                <Tabs.TabPane tab={t('editor_english_tab')} key="en">
                   <div className="space-y-4 pt-2">
+                    <div className="flex justify-end mb-2">
+                      <Button
+                        type="dashed"
+                        loading={translating}
+                        onClick={handleAutoTranslate}
+                        icon={<Languages className="w-4 h-4" />}
+                        className="border-accentBlue text-accentBlue hover:text-accentBlue/80 hover:border-accentBlue/80 rounded-xl flex items-center gap-1.5"
+                      >
+                        {translating ? `${t('editor_translating')} (${translateProgressText})...` : t('editor_auto_translate')}
+                      </Button>
+                    </div>
+
                     <Form.Item
-                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Article Title (EN)</span>}
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_title_en')}</span>}
                       name="title_en"
                     >
                       <Input placeholder="Enter English title..." className="h-10 rounded-xl" />
@@ -280,7 +537,7 @@ export const PostEditor: React.FC = () => {
                     <Form.Item
                       label={
                         <div className="flex flex-col">
-                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slug EN</span>
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_slug_en')}</span>
                           <span className="text-[10px] text-gray-500 font-normal">Auto-generated from EN title if left empty</span>
                         </div>
                       }
@@ -290,7 +547,7 @@ export const PostEditor: React.FC = () => {
                     </Form.Item>
 
                     <Form.Item
-                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Short Excerpt (EN)</span>}
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_excerpt_en')}</span>}
                       name="excerpt_en"
                     >
                       <Input.TextArea
@@ -301,7 +558,7 @@ export const PostEditor: React.FC = () => {
                     </Form.Item>
 
                     <Form.Item
-                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Article Content (EN)</span>}
+                      label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_content_en')}</span>}
                       name="content_en"
                     >
                       <RichTextEditor
@@ -325,7 +582,7 @@ export const PostEditor: React.FC = () => {
             {/* SEO Panel */}
             <Collapse ghost expandIconPosition="end">
               <Collapse.Panel
-                header={<span className="text-xs font-black text-slate-700 dark:text-gray-400 uppercase tracking-wider select-none">SEO Metadata Config</span>}
+                header={<span className="text-xs font-black text-slate-700 dark:text-gray-400 uppercase tracking-wider select-none">{t('editor_seo_title')}</span>}
                 key="seo"
                 className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 mb-4 px-2"
               >
@@ -355,7 +612,7 @@ export const PostEditor: React.FC = () => {
 
                   {/* Google Preview Widget */}
                   <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50 dark:bg-slate-950/40">
-                    <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black block mb-2">Google Preview Mockup</span>
+                    <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black block mb-2">{t('editor_google_preview')}</span>
                     <div className="space-y-1">
                       <span className="text-blue-500 dark:text-blue-400 text-sm font-semibold hover:underline block truncate">
                         {metaTitleVal || titleVal || 'Google Search Display Title'}
@@ -368,6 +625,41 @@ export const PostEditor: React.FC = () => {
                       </span>
                     </div>
                   </div>
+
+                  {/* SEO Score Widget */}
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50 dark:bg-slate-950/40">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[10px] text-gray-500 uppercase tracking-widest font-black block">SEO Score AI</span>
+                      <Button
+                        size="small"
+                        loading={scoringSEO}
+                        onClick={handleScoreSEO}
+                        icon={<Sparkles className="w-3.5 h-3.5" />}
+                        className="bg-accentPurple/10 text-accentPurple border-0 text-xs font-bold hover:bg-accentPurple/20 flex items-center gap-1.5"
+                      >
+                        Analyze SEO
+                      </Button>
+                    </div>
+                    {seoScore !== null && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`text-2xl font-black ${seoScore >= 80 ? 'text-green-500' : seoScore >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                            {seoScore}/100
+                          </div>
+                          <div className={`px-2 py-0.5 rounded text-xs font-bold ${seoScore >= 80 ? 'bg-green-500/10 text-green-500' : seoScore >= 50 ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'}`}>
+                            Grade {seoGrade}
+                          </div>
+                        </div>
+                        {seoSuggestions.length > 0 && (
+                          <ul className="text-xs text-gray-500 space-y-1 list-disc pl-4">
+                            {seoSuggestions.map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </Collapse.Panel>
             </Collapse>
@@ -377,24 +669,24 @@ export const PostEditor: React.FC = () => {
           <div className="space-y-6 select-none">
             {/* Status & Featured Card */}
             <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Publish Settings</h3>
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">{t('editor_publish_settings')}</h3>
               
               <div className="space-y-4">
                 <Form.Item
-                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Publish Status</span>}
+                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('table_status')}</span>}
                   name="status"
                 >
                   <Select
                     options={[
-                      { label: 'Published (Công khai)', value: 'published' },
-                      { label: 'Draft (Bản nháp)', value: 'draft' }
+                      { label: t('filter_published') || 'Published', value: 'published' },
+                      { label: t('filter_draft') || 'Draft', value: 'draft' }
                     ]}
                     className="h-10 rounded-xl"
                   />
                 </Form.Item>
 
                 <Form.Item
-                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Publish Date & Time (Schedule)</span>}
+                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_schedule_label')}</span>}
                   name="published_at"
                 >
                   <DatePicker showTime className="w-full h-10 rounded-xl" />
@@ -402,7 +694,7 @@ export const PostEditor: React.FC = () => {
 
                 <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-4">
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-800 dark:text-gray-200">Featured Article</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-gray-200">{t('editor_featured_label')}</span>
                     <span className="text-[10px] text-gray-500 font-normal">Show on the main landing slider</span>
                   </div>
                   <Form.Item name="is_featured" valuePropName="checked" className="mb-0">
@@ -412,7 +704,7 @@ export const PostEditor: React.FC = () => {
 
                 <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-4">
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-800 dark:text-gray-200">Is PDF Document Post</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-gray-200">{t('editor_is_pdf')}</span>
                     <span className="text-[10px] text-gray-500 font-normal">Attach a PDF file as document</span>
                   </div>
                   <Form.Item name="is_document" valuePropName="checked" className="mb-0">
@@ -422,7 +714,7 @@ export const PostEditor: React.FC = () => {
 
                 {isDocVal && (
                   <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2 animate-fade-in">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Attached PDF File</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('editor_pdf_attached')}</span>
                     <Form.Item name="pdf_media_id" className="hidden"><Input /></Form.Item>
                     
                     {selectedPDF ? (
@@ -446,7 +738,7 @@ export const PostEditor: React.FC = () => {
                         className="w-full h-12 flex items-center justify-center gap-1.5 border-dashed border-red-500/35 hover:border-red-500 text-red-500 font-bold rounded-xl"
                       >
                         <FileText className="w-4 h-4" />
-                        Select PDF File
+                        {t('editor_select_pdf')}
                       </Button>
                     )}
                   </div>
@@ -456,7 +748,7 @@ export const PostEditor: React.FC = () => {
 
             {/* Cover Image Picker */}
             <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Cover Image</h3>
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">{t('editor_cover_label')}</h3>
               <Form.Item name="cover_media_id" className="hidden"><Input /></Form.Item>
 
               {selectedCover ? (
@@ -475,7 +767,7 @@ export const PostEditor: React.FC = () => {
                         onClick={() => removeMedia('cover')}
                         className="bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/30 rounded-xl"
                       >
-                        Remove Cover
+                        {t('editor_remove_cover')}
                       </Button>
                     </div>
                   </div>
@@ -487,17 +779,17 @@ export const PostEditor: React.FC = () => {
                   className="w-full aspect-[16/10] flex flex-col items-center justify-center gap-2 border-dashed border-slate-700/60 text-gray-400 hover:text-white rounded-xl"
                 >
                   <ImageIcon className="w-6 h-6 text-gray-500" />
-                  <span className="text-xs font-bold">Pick Cover Image</span>
+                  <span className="text-xs font-bold">{t('editor_pick_cover')}</span>
                 </Button>
               )}
             </Card>
 
             {/* Categories & Tags Select */}
             <Card className="glass-panel border border-slate-200 dark:border-slate-800/60 rounded-2xl bg-white/40 dark:bg-slate-900/30 p-4">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Taxonomy</h3>
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">{t('editor_taxonomy')}</h3>
               <div className="space-y-4">
                 <Form.Item
-                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Categories</span>}
+                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('categories')}</span>}
                   name="category_ids"
                 >
                   <Select
@@ -510,7 +802,21 @@ export const PostEditor: React.FC = () => {
                 </Form.Item>
 
                 <Form.Item
-                  label={<span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tags</span>}
+                  label={
+                    <div className="flex justify-between items-center w-full">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('tags')}</span>
+                      <Button
+                        type="text"
+                        size="small"
+                        loading={extracting}
+                        onClick={handleExtractKeywords}
+                        icon={<Sparkles className="w-3.5 h-3.5 text-accentPurple" />}
+                        className="text-accentPurple hover:text-accentPurple/80 text-xs flex items-center gap-1 p-0 h-auto font-bold"
+                      >
+                        Extract
+                      </Button>
+                    </div>
+                  }
                   name="tag_ids"
                 >
                   <Select
@@ -544,7 +850,7 @@ export const PostEditor: React.FC = () => {
               icon={<Save className="w-4 h-4" />}
               className="w-full bg-btn-global hover:brightness-110 border-0 h-11 rounded-xl font-bold flex items-center justify-center gap-1.5 text-white shadow-lg shadow-accentBlue/10"
             >
-              {isEdit ? 'Save Changes' : 'Publish Article'}
+              {isEdit ? t('save_changes') : t('editor_save')}
             </Button>
           </div>
         </div>
@@ -590,6 +896,55 @@ export const PostEditor: React.FC = () => {
                   </div>
                 ))
             )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* AI Generate Modal */}
+      <Modal
+        title={
+          <div className="flex items-center gap-1.5 font-black text-slate-800 dark:text-white">
+            <Sparkles className="w-5 h-5 text-accentBlue" />
+            <span>Sinh bài viết tự động với AI</span>
+          </div>
+        }
+        open={aiModalVisible}
+        onCancel={() => {
+          if (!generating) {
+            setAiModalVisible(false);
+            setAiTopic('');
+          }
+        }}
+        footer={[
+          <Button key="cancel" disabled={generating} onClick={() => setAiModalVisible(false)}>
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={generating}
+            onClick={handleAIGenerate}
+            className="bg-gradient-to-r from-accentBlue to-accentPurple hover:brightness-110 border-0"
+          >
+            Tạo bài viết
+          </Button>
+        ]}
+        width={500}
+      >
+        <div className="py-4 space-y-4">
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Nhập chủ đề bạn muốn viết. AI sẽ tự động sinh tiêu đề, nội dung chi tiết dạng HTML, mô tả SEO và đề xuất thẻ bằng cả tiếng Việt và tiếng Anh.
+          </p>
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">Chủ đề bài viết</label>
+            <Input.TextArea
+              rows={4}
+              value={aiTopic}
+              disabled={generating}
+              onChange={(e) => setAiTopic(e.target.value)}
+              placeholder="e.g. Hướng dẫn thiết lập CI/CD pipeline với GitHub Actions và deploy lên Kubernetes..."
+              className="rounded-xl text-sm"
+            />
           </div>
         </div>
       </Modal>

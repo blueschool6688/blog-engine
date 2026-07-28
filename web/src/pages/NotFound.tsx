@@ -27,7 +27,7 @@ export const NotFound: React.FC = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0D0E14] text-slate-800 dark:text-gray-200 flex flex-col justify-between font-sans transition-colors duration-300 relative overflow-hidden select-none">
+    <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-800 dark:text-gray-200 flex flex-col justify-between font-sans transition-colors duration-300 relative overflow-hidden select-none">
       <div className="fixed top-0 left-1/4 w-[600px] h-[400px] rounded-full bg-accentBlue/6 blur-[150px] pointer-events-none -z-10 animate-pulse" />
       <div className="fixed bottom-0 right-1/4 w-[500px] h-[400px] rounded-full bg-accentPurple/6 blur-[150px] pointer-events-none -z-10 animate-pulse" />
 

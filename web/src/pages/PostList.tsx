@@ -5,7 +5,7 @@ import { postService, categoryService, tagService, getFullUrl } from '../service
 import type { Post, Category, Tag } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Table, Button, Input, Select, Modal, Space, Tag as AntdTag, Tooltip, Switch } from 'antd';
+import { Table, Button, Input, Select, Modal, Space, Tag as AntdTag, Tooltip, Switch, Badge } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 export async function loader() {
@@ -161,22 +161,27 @@ export const PostList: React.FC = () => {
       key: 'cover_media',
       width: 80,
       render: (_: any, record: Post) => {
-        if (record.cover_media) {
-          return (
-            <div className="w-12 h-12 rounded-lg bg-slate-950 overflow-hidden flex items-center justify-center border border-slate-800">
-              <img
-                src={getFullUrl(record.cover_media.thumbnail_url || record.cover_media.url)}
-                alt=""
-                className="object-cover w-full h-full"
-              />
-            </div>
-          );
-        }
-        return (
+        const thumb = record.cover_media ? (
+          <div className="w-12 h-12 rounded-lg bg-slate-950 overflow-hidden flex items-center justify-center border border-slate-800">
+            <img
+              src={getFullUrl(record.cover_media.thumbnail_url || record.cover_media.url)}
+              alt=""
+              className="object-cover w-full h-full"
+            />
+          </div>
+        ) : (
           <div className="w-12 h-12 rounded-lg bg-slate-900/60 border border-slate-800/80 flex items-center justify-center">
             <Plus className="w-4 h-4 text-gray-650" />
           </div>
         );
+        if (record.is_document) {
+          return (
+            <Badge.Ribbon text="PDF" color="red" style={{ fontSize: 9, padding: '0 4px' }}>
+              {thumb}
+            </Badge.Ribbon>
+          );
+        }
+        return thumb;
       }
     },
     {
@@ -321,7 +326,7 @@ export const PostList: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-white/40 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/60 rounded-xl px-4 py-2 w-fit">
-            <span className="text-xs font-semibold text-slate-700 dark:text-gray-300">Show Deleted</span>
+            <span className="text-xs font-semibold text-slate-700 dark:text-gray-300">{t('show_deleted')}</span>
             <Switch checked={showDeleted} onChange={setShowDeleted} size="small" />
           </div>
           <Link
@@ -329,7 +334,7 @@ export const PostList: React.FC = () => {
             className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-btn-global hover:brightness-110 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-accentBlue/10 select-none"
           >
             <Plus className="w-4 h-4" />
-            <span>{t('create_post')}</span>
+            <span>{t('create_new_post')}</span>
           </Link>
         </div>
       </div>
@@ -342,7 +347,7 @@ export const PostList: React.FC = () => {
           <div className="bg-slate-900/60 border border-slate-800/50 p-3.5 rounded-xl flex items-center justify-between animate-fade-in z-20">
             <div className="flex items-center space-x-3 select-none">
               <span className="text-xs bg-accentBlue/15 border border-accentBlue/25 text-accentBlue px-2.5 py-1 rounded-full font-semibold">
-                {selectedRowKeys.length} Selected
+                {selectedRowKeys.length} {t('selected')}
               </span>
               <Button
                 type="text"
@@ -350,7 +355,7 @@ export const PostList: React.FC = () => {
                 onClick={() => setSelectedRowKeys([])}
                 className="text-xs text-gray-400 hover:text-white font-medium"
               >
-                Clear
+                {t('clear')}
               </Button>
             </div>
 
@@ -398,7 +403,7 @@ export const PostList: React.FC = () => {
 
             {/* Category Filter */}
             <Select
-              placeholder="All Categories"
+              placeholder={t('all_categories')}
               allowClear
               value={categoryFilter}
               onChange={(val) => { setCategoryFilter(val); setCurrentPage(1); }}
@@ -411,7 +416,7 @@ export const PostList: React.FC = () => {
 
             {/* Tag Filter */}
             <Select
-              placeholder="All Tags"
+              placeholder={t('all_tags')}
               allowClear
               value={tagFilter}
               onChange={(val) => { setTagFilter(val); setCurrentPage(1); }}
@@ -426,13 +431,13 @@ export const PostList: React.FC = () => {
           <div className="flex items-center gap-3 w-full lg:w-auto">
             {/* Search Box */}
             <Input
-              placeholder="Search posts..."
+              placeholder={t('search_posts_placeholder')}
               prefix={<Search className="w-3.5 h-3.5 text-gray-500 mr-1" />}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full lg:w-64 h-9 rounded-xl"
             />
-            <div className="text-xs text-gray-500 shrink-0 font-mono">Total: {total}</div>
+            <div className="text-xs text-gray-500 shrink-0 font-mono">{t('total')}: {total}</div>
           </div>
         </div>
 
@@ -460,22 +465,22 @@ export const PostList: React.FC = () => {
         title={
           <span className="font-extrabold text-base text-slate-800 dark:text-white flex items-center gap-2 select-none">
             <Trash2 className="w-5 h-5 text-dangerRed" /> 
-            {isForceDelete ? 'Permanently Delete Article?' : 'Delete Article (Soft Delete)?'}
+            {isForceDelete ? t('delete_permanent_title') : t('delete_soft_title')}
           </span>
         }
         open={deletePostId !== null}
         onOk={handleDeleteConfirm}
         onCancel={() => setDeletePostId(null)}
-        okText={isForceDelete ? 'Force Delete' : (t('btn_delete') || 'Delete')}
-        cancelText={t('btn_cancel') || 'Cancel'}
+        okText={isForceDelete ? t('force_delete') : t('delete')}
+        cancelText={t('cancel')}
         okButtonProps={{ danger: true, className: "rounded-xl font-bold h-9" }}
         cancelButtonProps={{ className: "rounded-xl font-bold h-9" }}
         className="select-none"
       >
         <p className="text-sm text-gray-500 mt-3 mb-2 font-medium leading-relaxed select-text">
           {isForceDelete 
-            ? 'Are you sure you want to permanently delete this article? This action is irreversible.'
-            : 'Are you sure you want to delete this article? You can restore it later from the deleted view.'}
+            ? t('delete_permanent_msg')
+            : t('delete_soft_msg')}
         </p>
       </Modal>
     </div>

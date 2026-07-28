@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { publicService, getFullUrl } from '../services/api';
 import type { Author } from '../services/api';
-import { Users, Mail, ArrowRight, Loader, Info } from 'lucide-react';
+import { Mail, ArrowRight, Info } from 'lucide-react';
 import { Link } from 'react-router';
 import { useLanguage } from '../context/LanguageContext';
+import { Skeleton } from 'antd';
 
 export async function loader() {
   return null;
@@ -34,10 +35,6 @@ export const AuthorsList: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 space-y-8">
       <div>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accentBlue/10 text-accentBlue text-xs font-semibold mb-3">
-          <Users className="w-3.5 h-3.5" />
-          <span>{t('our_writers')}</span>
-        </div>
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
           {t('meet_the_authors')}
         </h1>
@@ -47,9 +44,18 @@ export const AuthorsList: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="py-20 text-center space-y-4 animate-pulse">
-          <Loader className="w-10 h-10 animate-spin text-accentBlue mx-auto" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('loading')}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 bg-white/40 dark:bg-slate-900/30">
+              <div className="flex items-center space-x-4 mb-4">
+                <Skeleton.Avatar active size={64} shape="circle" />
+                <div className="flex-1">
+                  <Skeleton active paragraph={{ rows: 1, width: '60%' }} title={{ width: '80%' }} />
+                </div>
+              </div>
+              <Skeleton active paragraph={{ rows: 2 }} title={false} />
+            </div>
+          ))}
         </div>
       ) : authors.length === 0 ? (
         <div className="py-16 text-center glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl bg-white/40 dark:bg-slate-900/30">
@@ -64,7 +70,6 @@ export const AuthorsList: React.FC = () => {
               className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 flex flex-col justify-between hover:-translate-y-1 hover:shadow-xl transition-all duration-300 bg-white/40 dark:bg-slate-900/30 group"
             >
               <div className="space-y-4">
-                {/* Author Identity */}
                 <div className="flex items-center space-x-4">
                   <div className="w-16 h-16 rounded-full border-2 border-accentBlue/20 overflow-hidden flex items-center justify-center shrink-0 bg-slate-100 dark:bg-slate-950/40">
                     {author.avatar_url ? (

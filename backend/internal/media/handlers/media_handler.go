@@ -51,6 +51,14 @@ func (h *MediaHandler) Upload(c *fiber.Ctx) error {
 	} else if mimeType == "video/mp4" || mimeType == "video/webm" {
 		mediaType = "video"
 		sizeLimit = 500 * 1024 * 1024 // 500MB
+	} else if mimeType == "application/pdf" || 
+		mimeType == "text/plain" || 
+		mimeType == "application/msword" || 
+		mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || 
+		mimeType == "application/vnd.ms-excel" || 
+		mimeType == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" {
+		mediaType = "document"
+		sizeLimit = 50 * 1024 * 1024 // 50MB
 	} else {
 		// Fallback check based on extension
 		ext := strings.ToLower(filepath.Ext(file.Filename))
@@ -64,6 +72,25 @@ func (h *MediaHandler) Upload(c *fiber.Ctx) error {
 				}
 			}
 			sizeLimit = 500 * 1024 * 1024
+		} else if ext == ".pdf" || ext == ".txt" || ext == ".doc" || ext == ".docx" || ext == ".xls" || ext == ".xlsx" {
+			mediaType = "document"
+			if mimeType == "" || mimeType == "application/octet-stream" {
+				switch ext {
+				case ".pdf":
+					mimeType = "application/pdf"
+				case ".txt":
+					mimeType = "text/plain"
+				case ".doc":
+					mimeType = "application/msword"
+				case ".docx":
+					mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+				case ".xls":
+					mimeType = "application/vnd.ms-excel"
+				case ".xlsx":
+					mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+				}
+			}
+			sizeLimit = 50 * 1024 * 1024
 		} else if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".webp" {
 			mediaType = "image"
 			if mimeType == "" || mimeType == "application/octet-stream" {
@@ -119,8 +146,12 @@ func (h *MediaHandler) Upload(c *fiber.Ctx) error {
 
 	if mediaType == "video" {
 		h.videoChan <- media.ID
-	} else {
+	} else if mediaType == "image" {
 		h.imageChan <- media.ID
+	} else {
+		// Documents do not need background thumbnail processing
+		media.Status = "completed"
+		h.repo.Update(ctx, media)
 	}
 
 	if userID, ok := c.Locals("user_id").(uint); ok {

@@ -11,6 +11,7 @@ type Comment struct {
 	Content     string    `gorm:"type:text;not null" json:"content"`
 	Status      string    `gorm:"type:varchar(50);not null;default:'pending'" json:"status"`
 	IPAddress   string    `gorm:"type:varchar(45)" json:"-"`
+	SpamScore   *float64  `gorm:"type:decimal(4,3)" json:"spam_score,omitempty"`
 	Replies     []Comment `gorm:"foreignKey:ParentID" json:"replies,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

@@ -2,6 +2,7 @@ package translate
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -67,6 +68,30 @@ func (s *Service) CreateAsyncJob(ctx context.Context, req TranslateRequest) (str
 // GetAsyncJob lấy trạng thái và kết quả của một async job.
 func (s *Service) GetAsyncJob(ctx context.Context, jobID string) (*AsyncJobResult, error) {
 	return s.jobStore.GetJob(ctx, jobID)
+}
+
+// ListJobs lấy danh sách job phân trang.
+func (s *Service) ListJobs(ctx context.Context, offset, limit int) ([]*TranslateJobRow, int64, error) {
+	if s.jobStore == nil {
+		return nil, 0, fmt.Errorf("job store is not configured")
+	}
+	return s.jobStore.ListJobs(ctx, offset, limit)
+}
+
+// RetryJob đặt lại trạng thái job về pending.
+func (s *Service) RetryJob(ctx context.Context, jobID string) error {
+	if s.jobStore == nil {
+		return fmt.Errorf("job store is not configured")
+	}
+	return s.jobStore.RetryJob(ctx, jobID)
+}
+
+// DeleteJob xóa job khỏi DB.
+func (s *Service) DeleteJob(ctx context.Context, jobID string) error {
+	if s.jobStore == nil {
+		return fmt.Errorf("job store is not configured")
+	}
+	return s.jobStore.DeleteJob(ctx, jobID)
 }
 
 // ProcessNextJob lấy job pending tiếp theo từ queue và xử lý.
@@ -144,8 +169,11 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) Translate
 		}
 	}
 
+	// Protect HTML code blocks and image tags to prevent AI from breaking formatting
+	protectedContent, placeholders := protectElements(req.Content)
+
 	// Cache miss → chia chunk và dịch
-	chunks := ChunkContent(req.Content, s.chunkSize)
+	chunks := ChunkContent(protectedContent, s.chunkSize)
 	s.logInfo("[translate] CACHE MISS chunks=%d content_len=%d target=%s\n",
 		len(chunks), len(req.Content), req.TargetLang)
 
@@ -164,6 +192,9 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) Translate
 		// Nội dung dài — dịch song song
 		translated, isPartial, err = s.translateChunked(ctx, chunks, req.TargetLang, req.SourceLang)
 	}
+
+	// Restore protected HTML tags and code blocks
+	translated = restoreElements(translated, placeholders)
 
 	elapsed := time.Since(start)
 
@@ -386,4 +417,50 @@ func mergeSmallSegments(segments []string, maxChars int) []string {
 	}
 	result = append(result, current)
 	return result
+}
+
+var (
+	preRegex  = regexp.MustCompile(`(?s)<pre\b[^>]*>.*?</pre>`)
+	codeRegex = regexp.MustCompile(`(?s)<code\b[^>]*>.*?</code>`)
+	imgRegex  = regexp.MustCompile(`<img\b[^>]*>`)
+)
+
+func protectElements(html string) (string, map[string]string) {
+	placeholders := make(map[string]string)
+	counter := 0
+
+	// Protect <pre>...</pre> blocks first (most specific)
+	html = preRegex.ReplaceAllStringFunc(html, func(match string) string {
+		placeholder := fmt.Sprintf("___PRE_BLOCK_PLACEHOLDER_%d___", counter)
+		placeholders[placeholder] = match
+		counter++
+		return placeholder
+	})
+
+	// Protect <code>...</code> blocks (inline)
+	html = codeRegex.ReplaceAllStringFunc(html, func(match string) string {
+		placeholder := fmt.Sprintf("___CODE_BLOCK_PLACEHOLDER_%d___", counter)
+		placeholders[placeholder] = match
+		counter++
+		return placeholder
+	})
+
+	// Protect <img> tags
+	html = imgRegex.ReplaceAllStringFunc(html, func(match string) string {
+		placeholder := fmt.Sprintf("___IMG_TAG_PLACEHOLDER_%d___", counter)
+		placeholders[placeholder] = match
+		counter++
+		return placeholder
+	})
+
+	return html, placeholders
+}
+
+func restoreElements(html string, placeholders map[string]string) string {
+	for placeholder, original := range placeholders {
+		// Use regex for case-insensitive replace in case LLM changes placeholder capitalization
+		re := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(placeholder))
+		html = re.ReplaceAllString(html, original)
+	}
+	return html
 }

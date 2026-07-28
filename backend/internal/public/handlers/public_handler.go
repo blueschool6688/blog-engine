@@ -147,6 +147,7 @@ func (h *PublicHandler) ListPosts(c *fiber.Ctx) error {
 			return db.Order("post_media.sort_order ASC")
 		}).
 		Preload("Gallery.Media").
+		Preload("PDFMedia").
 		Offset(offset).Limit(limit).Order("posts.id desc").
 		Find(&posts).Error
 	if err != nil {
@@ -207,7 +208,8 @@ func (h *PublicHandler) GetPostBySlug(c *fiber.Ctx) error {
 			return db.Order("post_media.sort_order ASC")
 		}).
 		Preload("Gallery.Media").
-		Where("slug = ? AND status = ?", slug, "published").
+		Preload("PDFMedia").
+		Where("(slug = ? OR slug_en = ?) AND status = ?", slug, slug, "published").
 		First(&post).Error
 
 	if err != nil {

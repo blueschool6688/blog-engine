@@ -30,8 +30,13 @@ type Config struct {
 	// NVIDIA NIM API cho tính năng dịch thuật AI
 	NVIDIAAPIKey       string
 	NVIDIAModel        string
+	NVIDIASpamModel    string
 	// TranslateChunkSize: số ký tự tối đa mỗi chunk khi dịch nội dung dài
 	TranslateChunkSize int
+	// Discord webhook settings
+	DiscordPublicKey   string
+	DiscordBotSecret   string
+	DiscordAuthorID    uint
 }
 
 func Load() *Config {
@@ -65,7 +70,11 @@ func Load() *Config {
 		CFAPIToken:         getEnv("CF_API_TOKEN", ""),
 		NVIDIAAPIKey:       getEnv("NVIDIA_API_KEY", ""),
 		NVIDIAModel:        getEnv("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct"),
+		NVIDIASpamModel:    getEnv("NVIDIA_SPAM_MODEL", "meta/llama-3.1-8b-instruct"),
 		TranslateChunkSize: getEnvInt("TRANSLATE_CHUNK_SIZE", 2000),
+		DiscordPublicKey:   getEnv("DISCORD_PUBLIC_KEY", ""),
+		DiscordBotSecret:   getEnv("DISCORD_BOT_SECRET", ""),
+		DiscordAuthorID:    uint(getEnvInt("DISCORD_AUTHOR_ID", 1)),
 	}
 }
 

@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useTheme } from '../context/ThemeContext';
 import { settingsService, profileService, mediaService, getFullUrl } from '../services/api';
-import { Save, Key, User as UserIcon, Globe, Upload, Loader, Image as ImageIcon, Plus, Trash, X } from 'lucide-react';
+import { Save, Key, User as UserIcon, Globe, Upload, Loader, Image as ImageIcon, Plus, Trash, X, Palette, RefreshCw } from 'lucide-react';
 
 export async function loader() {
   return null;
@@ -13,6 +14,7 @@ type TabType = 'site' | 'profile' | 'password';
 export const Settings: React.FC = () => {
   const { user, updateUser } = useAuth();
   const { showSuccess, showError } = useToast();
+  const { colors, updateThemeColors, resetThemeColors } = useTheme();
 
   const [activeTab, setActiveTab] = useState<TabType>('site');
   const [loading, setLoading] = useState(false);
@@ -616,8 +618,103 @@ export const Settings: React.FC = () => {
 
                 {/* Global Color Theme Configuration */}
                 <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800/50">
-                  <h4 className="text-sm font-semibold text-slate-850 dark:text-gray-200">Global Design Colors Customizer</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-850 dark:text-gray-200 flex items-center gap-2">
+                        <Palette className="w-4 h-4 text-accentBlue" />
+                        Theme Background Colors (Light & Dark)
+                      </h4>
+                      <p className="text-xs text-gray-400 mt-0.5">Customize background colors for Light and Dark modes (e.g. Dark Navy #090D16 like thanhnamnguyen.dev)</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetThemeColors}
+                      className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-gray-400 hover:text-accentBlue dark:hover:text-accentBlue transition-colors px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Reset Colors
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/50 dark:bg-slate-950/40 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800/60">
+                    {/* Light Mode Background */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-gray-300 uppercase tracking-wider flex items-center justify-between">
+                        <span>Light Mode Background</span>
+                        <span className="text-[10px] text-gray-400 normal-case">Default: #F8FAFC</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={colors.lightBg}
+                          onChange={(e) => updateThemeColors({ lightBg: e.target.value })}
+                          className="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-800 cursor-pointer bg-transparent shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={colors.lightBg}
+                          onChange={(e) => updateThemeColors({ lightBg: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-850 dark:text-gray-100 text-xs focus:outline-none uppercase font-mono"
+                        />
+                      </div>
+                      <div className="flex gap-1.5 pt-1">
+                        {[
+                          { name: 'Slate Light', color: '#F8FAFC' },
+                          { name: 'Pure White', color: '#FFFFFF' },
+                          { name: 'Warm Cream', color: '#FDFBF7' },
+                        ].map((preset) => (
+                          <button
+                            key={preset.color}
+                            type="button"
+                            onClick={() => updateThemeColors({ lightBg: preset.color })}
+                            className="px-2 py-0.5 rounded text-[10px] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-gray-400 hover:border-accentBlue"
+                          >
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Dark Mode Background */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-gray-300 uppercase tracking-wider flex items-center justify-between">
+                        <span>Dark Mode Background</span>
+                        <span className="text-[10px] text-gray-400 normal-case">Target Blog: #090D16</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={colors.darkBg}
+                          onChange={(e) => updateThemeColors({ darkBg: e.target.value })}
+                          className="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-800 cursor-pointer bg-transparent shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={colors.darkBg}
+                          onChange={(e) => updateThemeColors({ darkBg: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-850 dark:text-gray-100 text-xs focus:outline-none uppercase font-mono"
+                        />
+                      </div>
+                      <div className="flex gap-1.5 pt-1">
+                        {[
+                          { name: 'Deep Navy', color: '#090D16' },
+                          { name: 'Pure Black', color: '#000000' },
+                          { name: 'Midnight', color: '#0F172A' },
+                        ].map((preset) => (
+                          <button
+                            key={preset.color}
+                            type="button"
+                            onClick={() => updateThemeColors({ darkBg: preset.color })}
+                            className="px-2 py-0.5 rounded text-[10px] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-gray-400 hover:border-accentBlue"
+                          >
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
                     <div className="space-y-1.5 flex flex-col">
                       <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Primary Color</label>
                       <div className="flex items-center gap-2">

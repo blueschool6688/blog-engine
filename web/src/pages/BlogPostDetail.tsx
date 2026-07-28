@@ -3,7 +3,6 @@ import { Link, useParams, useNavigate } from 'react-router';
 import { publicService, getFullUrl } from '../services/api';
 import type { Post, Category } from '../services/api';
 import { CommentSection } from '../components/CommentSection';
-import TranslateToggle from '../components/TranslateToggle';
 import {
   ArrowLeft,
   Calendar,
@@ -15,11 +14,12 @@ import {
   Copy,
   List,
   Image,
-  X,
-  FileText
+  FileText,
+  Sparkles
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { Spin } from 'antd';
+import { Skeleton, Button, Modal } from 'antd';
+import { PostCard } from '../components/PostCard';
 
 export async function loader() {
   return null;
@@ -43,7 +43,7 @@ function parseToc(html: string): TocItem[] {
   const items: TocItem[] = [];
   headings.forEach((el) => {
     const text = el.textContent?.trim() || '';
-    const id = text.toLowerCase().replace(/[^a-z0-9\u00C0-\u024F]+/gi, '-').replace(/^-|-$/g, '');
+    const id = el.id || text.toLowerCase().replace(/[^a-z0-9\u00C0-\u024F]+/gi, '-').replace(/^-|-$/g, '');
     if (id) items.push({ id, text, level: parseInt(el.tagName[1]) });
   });
   return items;
@@ -54,10 +54,21 @@ function processHtml(html: string, language: 'vi' | 'en'): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
+  const usedIds = new Map<string, number>();
   doc.querySelectorAll('h2, h3, h4').forEach((el) => {
     const text = el.textContent?.trim() || '';
-    const id = text.toLowerCase().replace(/[^a-z0-9\u00C0-\u024F]+/gi, '-').replace(/^-|-$/g, '');
-    el.id = id;
+    let baseId = text.toLowerCase().replace(/[^a-z0-9\u00C0-\u024F]+/gi, '-').replace(/^-|-$/g, '');
+    if (!baseId) baseId = 'heading';
+
+    let uniqueId = baseId;
+    if (usedIds.has(baseId)) {
+      const count = usedIds.get(baseId)! + 1;
+      usedIds.set(baseId, count);
+      uniqueId = `${baseId}-${count}`;
+    } else {
+      usedIds.set(baseId, 0);
+    }
+    el.id = uniqueId;
   });
 
   doc.querySelectorAll('pre').forEach((pre) => {
@@ -146,7 +157,31 @@ export const BlogPostDetail: React.FC = () => {
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState('');
   const [tocOpen, setTocOpen] = useState(false);
-  const [lightboxImg, setLightboxImg] = useState<string | null>(null);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxSlides, setLightboxSlides] = useState<any[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [Lightbox, setLightbox] = useState<any>(null);
+  const [ZoomPlugin, setZoomPlugin] = useState<any>(null);
+  const [VideoPlugin, setVideoPlugin] = useState<any>(null);
+  const [PDFViewer, setPDFViewer] = useState<React.ComponentType<{ url: string; fileName?: string }> | null>(null);
+
+  useEffect(() => {
+    import('../components/PDFViewer').then((mod) => {
+      setPDFViewer(() => mod.PDFViewer);
+    });
+
+    Promise.all([
+      import('yet-another-react-lightbox'),
+      import('yet-another-react-lightbox/plugins/zoom'),
+      import('yet-another-react-lightbox/plugins/video'),
+      import('yet-another-react-lightbox/styles.css')
+    ]).then(([lightboxMod, zoomMod, videoMod]) => {
+      setLightbox(() => lightboxMod.default);
+      setZoomPlugin(() => zoomMod.default);
+      setVideoPlugin(() => videoMod.default);
+    });
+  }, []);
 
   const handleTocClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
@@ -158,6 +193,8 @@ export const BlogPostDetail: React.FC = () => {
     }
   };
 
+  const [relatedPosts, setRelatedPosts] = useState<Post[]>([]);
+
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
@@ -166,36 +203,54 @@ export const BlogPostDetail: React.FC = () => {
       .then((res) => {
         const p = res.data;
         setPost(p);
-        const rawHtml = p.content || '';
-        setProcessedHtml(processHtml(rawHtml, language));
-        setToc(parseToc(rawHtml));
+        
+        // Fetch related posts from same category or latest
+        const primaryCat = p?.categories?.[0]?.slug;
+        publicService.getPosts({ category: primaryCat, limit: 4 })
+          .then((relRes) => {
+            if (relRes.data) {
+              const filtered = relRes.data.filter((item) => item.id !== p.id).slice(0, 3);
+              setRelatedPosts(filtered);
+            }
+          })
+          .catch(() => {});
       })
       .catch(() => navigate('/'))
       .finally(() => setLoading(false));
-  }, [slug, navigate, language]);
+  }, [slug, navigate]);
+
+  useEffect(() => {
+    if (!post) return;
+    const rawHtml = language === 'en' ? (post.content_en || post.content) : (post.content || '');
+    const processed = processHtml(rawHtml, language);
+    const parsedToc = parseToc(processed);
+    setProcessedHtml(processed);
+    setToc(parsedToc);
+  }, [post, language]);
 
   useEffect(() => {
     const handleImageClick = (e: Event) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'IMG' && target.classList.contains('post-image')) {
         e.preventDefault();
-        setLightboxImg(target.getAttribute('src') || null);
+        const clickedSrc = target.getAttribute('src');
+        if (clickedSrc) {
+          const imgElements = Array.from(document.querySelectorAll('.post-content img.post-image'));
+          const imgSlides = imgElements.map((img) => ({
+            src: img.getAttribute('src') || '',
+          }));
+          const clickedIndex = imgElements.findIndex((img) => img.getAttribute('src') === clickedSrc);
+
+          setLightboxSlides(imgSlides);
+          setLightboxIndex(clickedIndex >= 0 ? clickedIndex : 0);
+          setLightboxOpen(true);
+        }
       }
     };
     const container = document.querySelector('.post-content');
     container?.addEventListener('click', handleImageClick);
     return () => container?.removeEventListener('click', handleImageClick);
   }, [processedHtml]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setLightboxImg(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   const handleCopyClick = useCallback((e: MouseEvent) => {
     const btn = (e.target as HTMLElement).closest('[data-copy="true"]') as HTMLButtonElement | null;
@@ -241,8 +296,17 @@ export const BlogPostDetail: React.FC = () => {
 
   if (loading || !post) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 animate-pulse">
-        <Spin size="large" />
+      <div className="max-w-5xl mx-auto px-4 py-10">
+        <div className="space-y-4 mb-8">
+          <Skeleton active paragraph={false} title={{ width: '30%' }} />
+          <Skeleton active paragraph={{ rows: 2, width: ['100%', '65%'] }} title={false} />
+          <Skeleton active paragraph={false} title={{ width: '45%' }} />
+        </div>
+        <div className="space-y-3">
+          <Skeleton active paragraph={{ rows: 5 }} />
+          <Skeleton active paragraph={{ rows: 4 }} />
+          <Skeleton active paragraph={{ rows: 3, width: ['100%', '80%', '60%'] }} />
+        </div>
       </div>
     );
   }
@@ -423,23 +487,24 @@ export const BlogPostDetail: React.FC = () => {
         <nav className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-gray-500 mb-6 flex-wrap" aria-label="Breadcrumb">
           <Link to="/" className="flex items-center gap-1 hover:text-accentBlue transition-colors font-medium">
             <Home className="w-3.5 h-3.5" />
-            <span>Trang chủ</span>
+            <span>{t('home')}</span>
           </Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-350" />
           {primaryCategory && buildCategoryBreadcrumbs(primaryCategory).map((crumb) => (
             <React.Fragment key={crumb.id}>
               <Link to={`/?category=${crumb.slug}`} className="hover:text-accentBlue transition-colors font-medium">
-                {crumb.name}
+                {language === 'en' ? (crumb.name_en || crumb.name) : crumb.name}
               </Link>
               <ChevronRight className="w-3.5 h-3.5 text-slate-355" />
             </React.Fragment>
           ))}
-          <span className="text-slate-700 dark:text-gray-300 font-medium truncate max-w-[180px] md:max-w-sm">{post.title}</span>
+          <span className="text-slate-700 dark:text-gray-300 font-medium truncate max-w-[180px] md:max-w-sm">
+            {language === 'en' ? (post.title_en || post.title) : post.title}
+          </span>
         </nav>
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start">
           <article className="flex-1 min-w-0">
-            {/* Category badge */}
             {primaryCategory && (
               <div className="mb-4">
                 <Link
@@ -447,17 +512,28 @@ export const BlogPostDetail: React.FC = () => {
                   className="inline-flex items-center gap-1.5 bg-accentBlue/10 text-accentBlue text-[11px] font-bold px-3 py-1.5 rounded-full border border-accentBlue/20 hover:bg-accentBlue/15 transition-colors"
                 >
                   <Tag className="w-3 h-3" />
-                  {primaryCategory.name}
+                  {language === 'en' ? (primaryCategory.name_en || primaryCategory.name) : primaryCategory.name}
                 </Link>
               </div>
             )}
 
-            {/* Title */}
             <h1 className="text-2xl md:text-[2rem] lg:text-[2.25rem] font-extrabold text-slate-900 dark:text-white leading-tight mb-5 tracking-tight">
-              {post.title}
+              {language === 'en' ? (post.title_en || post.title) : post.title}
             </h1>
 
-            {/* Meta bar */}
+            {(post.excerpt || post.excerpt_en) && (
+              <div className="mb-6 flex items-center">
+                <Button
+                  type="dashed"
+                  onClick={() => setShowSummaryModal(true)}
+                  icon={<Sparkles className="w-3.5 h-3.5 text-accentBlue" />}
+                  className="border-accentBlue/30 hover:border-accentBlue text-accentBlue hover:text-accentPurple rounded-xl font-bold flex items-center gap-1.5 h-9 text-xs"
+                >
+                  {language === 'vi' ? 'Xem tóm tắt nhanh' : 'View quick summary'}
+                </Button>
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-gray-500 pb-6 mb-8 border-b border-slate-200 dark:border-slate-800/80">
               {post.author && (
                 <div className="flex items-center gap-2">
@@ -481,11 +557,10 @@ export const BlogPostDetail: React.FC = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                <span>{readTime} phút đọc</span>
+                <span>{language === 'vi' ? `${readTime} phút đọc` : `${readTime} min read`}</span>
               </div>
             </div>
 
-            {/* PDF viewer for Document Post */}
             {post.is_document && post.pdf_media && (
               <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-red-500/25 bg-slate-900/40 p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -493,31 +568,36 @@ export const BlogPostDetail: React.FC = () => {
                     <FileText className="w-5 h-5" />
                     <span className="text-sm font-bold">{post.pdf_media.file_name}</span>
                   </div>
-                  <a
-                    href={getFullUrl(post.pdf_media.url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all"
-                  >
-                    Tải PDF
-                  </a>
                 </div>
-                <iframe
-                  src={getFullUrl(post.pdf_media.url)}
-                  title="Document PDF viewer"
-                  className="w-full h-[600px] border border-slate-800 rounded-xl bg-slate-950"
-                />
+                {PDFViewer ? (
+                  <PDFViewer url={getFullUrl(post.pdf_media.url)} fileName={post.pdf_media.file_name} />
+                ) : (
+                  <div className="text-xs text-gray-500 py-4 text-center">Loading viewer component...</div>
+                )}
               </div>
             )}
 
-            {/* Cover image (render if not document or doc doesn't cover pdf) */}
+            {/* Cover image/video */}
             {!post.is_document && post.cover_media?.url && (
               <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-slate-200/60 dark:border-slate-800/60">
-                <img
-                  src={getFullUrl(post.cover_media.url)}
-                  alt={post.title}
-                  className="w-full aspect-video object-cover"
-                />
+                {post.cover_media!.type === 'video' ? (
+                  <video
+                    src={getFullUrl(post.cover_media!.url)}
+                    controls
+                    className="w-full aspect-video object-cover"
+                  />
+                ) : (
+                  <img
+                    src={getFullUrl(post.cover_media!.url)}
+                    alt={post.title}
+                    className="w-full aspect-video object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                    onClick={() => {
+                      setLightboxSlides([{ src: getFullUrl(post.cover_media!.url) }]);
+                      setLightboxIndex(0);
+                      setLightboxOpen(true);
+                    }}
+                  />
+                )}
               </div>
             )}
             {toc.length > 0 && (
@@ -552,10 +632,10 @@ export const BlogPostDetail: React.FC = () => {
               </div>
             )}
 
-            {/* Nội dung bài viết — có nút dịch AI sang ngôn ngữ còn lại */}
-            <TranslateToggle
-              content={processedHtml}
-              className="post-content-wrapper"
+            {/* Nội dung bài viết */}
+            <div
+              className="post-content post-content-wrapper"
+              dangerouslySetInnerHTML={{ __html: processedHtml }}
             />
 
             {post.gallery && post.gallery.length > 0 && (
@@ -565,23 +645,51 @@ export const BlogPostDetail: React.FC = () => {
                   <span>Hình ảnh ({post.gallery.length})</span>
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {post.gallery.map((item) => (
-                    <div key={item.id} className="group relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-900/10">
-                      <a href={getFullUrl(item.media.url)} target="_blank" rel="noopener noreferrer" className="block aspect-[4/3] overflow-hidden">
-                        <img
-                          src={getFullUrl(item.media.thumbnail_url || item.media.url)}
-                          alt={item.alt_text || item.caption || post.title}
-                          className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-350"
-                          loading="lazy"
-                        />
-                      </a>
-                      {item.caption && (
-                        <div className="p-2.5 text-center text-xs text-slate-500 dark:text-gray-400 bg-white/90 dark:bg-slate-950/80 border-t border-slate-100 dark:border-slate-800/50 line-clamp-2">
-                          {item.caption}
+                  {post.gallery.map((item, idx) => {
+                    const slideList = post.gallery?.map((g) => {
+                      if (g.media.type === 'video') {
+                        return {
+                          type: 'video' as const,
+                          sources: [
+                            {
+                              src: getFullUrl(g.media.url),
+                              type: g.media.mime_type || 'video/mp4',
+                            },
+                          ],
+                        };
+                      }
+                      return {
+                        src: getFullUrl(g.media.url),
+                        title: g.caption || undefined,
+                        description: g.alt_text || undefined,
+                      };
+                    }) || [];
+
+                    return (
+                      <div key={item.id} className="group relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-900/10">
+                        <div
+                          onClick={() => {
+                            setLightboxSlides(slideList);
+                            setLightboxIndex(idx);
+                            setLightboxOpen(true);
+                          }}
+                          className="block aspect-[4/3] overflow-hidden cursor-pointer"
+                        >
+                          <img
+                            src={getFullUrl(item.media.thumbnail_url || item.media.url)}
+                            alt={item.alt_text || item.caption || post.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-350"
+                            loading="lazy"
+                          />
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {item.caption && (
+                          <div className="p-2.5 text-center text-xs text-slate-500 dark:text-gray-400 bg-white/90 dark:bg-slate-950/80 border-t border-slate-100 dark:border-slate-800/50 line-clamp-2">
+                            {item.caption}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -635,6 +743,35 @@ export const BlogPostDetail: React.FC = () => {
                 {t('back')}
               </button>
             </div>
+
+            {/* Related Posts Section */}
+            {relatedPosts.length > 0 && (
+              <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-accentBlue" />
+                    {language === 'vi' ? 'Bài viết tương tự' : 'Related Articles'}
+                  </h3>
+                  <Link to="/" className="text-xs font-semibold text-accentBlue hover:underline">
+                    {t('all_posts')}
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {relatedPosts.map((relPost) => (
+                    <PostCard
+                      key={relPost.id}
+                      post={relPost}
+                      language={language}
+                      t={t}
+                      formatRelative={(dateStr) => dateStr}
+                      estimateReadTime={() => 5}
+                      toggleFilter={() => {}}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             <CommentSection postId={post.id} />
           </article>
@@ -699,25 +836,38 @@ export const BlogPostDetail: React.FC = () => {
       </div>
 
       {/* Lightbox Modal */}
-      {lightboxImg && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300"
-          onClick={() => setLightboxImg(null)}
+      {lightboxOpen && Lightbox && (
+        <Lightbox
+          open={lightboxOpen}
+          close={() => setLightboxOpen(false)}
+          index={lightboxIndex}
+          slides={lightboxSlides}
+          plugins={[ZoomPlugin, VideoPlugin].filter(Boolean)}
+        />
+      )}
+
+      {/* AI Summary Modal */}
+      {post && (post.excerpt || post.excerpt_en) && (
+        <Modal
+          title={
+            <div className="flex items-center gap-1.5 font-black text-slate-800 dark:text-white">
+              <Sparkles className="w-5 h-5 text-accentBlue" />
+              <span>{language === 'vi' ? 'Tóm tắt bài viết bằng AI ✨' : 'AI Article Summary ✨'}</span>
+            </div>
+          }
+          open={showSummaryModal}
+          onCancel={() => setShowSummaryModal(false)}
+          footer={[
+            <Button key="close" type="primary" onClick={() => setShowSummaryModal(false)} className="bg-accentBlue border-0 rounded-lg">
+              {language === 'vi' ? 'Đóng' : 'Close'}
+            </Button>
+          ]}
+          width={550}
         >
-          <button
-            onClick={() => setLightboxImg(null)}
-            className="absolute top-6 right-6 p-2 rounded-full bg-slate-900/80 hover:bg-slate-850 text-gray-300 hover:text-white border border-slate-800 transition-all z-[110]"
-            title="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <img
-            src={lightboxImg}
-            alt="Lightbox review"
-            className="max-w-[92%] max-h-[92%] object-contain rounded-xl shadow-2xl border border-slate-800/40 animate-scale-up"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+          <div className="py-4 text-sm text-slate-600 dark:text-gray-300 leading-relaxed font-medium">
+            {language === 'en' ? (post.excerpt_en || post.excerpt) : (post.excerpt || post.excerpt_en)}
+          </div>
+        </Modal>
       )}
     </>
   );

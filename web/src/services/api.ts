@@ -36,7 +36,7 @@ export interface Media {
   url: string;
   thumbnail_url: string;
   status: 'processing' | 'completed' | 'failed';
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'document';
   duration?: number;
   resolution?: string;
   file_size: number;
@@ -135,6 +135,7 @@ export interface Comment {
   author_name: string;
   content: string;
   status: 'pending' | 'approved' | 'rejected';
+  spam_score?: number;
   replies?: Comment[];
   created_at: string;
 }
@@ -517,6 +518,18 @@ export interface BatchTranslateResponse {
   results: TranslateResponse[];
 }
 
+export interface TranslateJob {
+  id: number;
+  job_id: string;
+  content: string;
+  target_lang: string;
+  source_lang: string;
+  status: 'pending' | 'processing' | 'done' | 'failed';
+  result?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * translateService cung cấp các method để dịch nội dung động qua backend AI.
  * KHÔNG gọi trực tiếp NVIDIA API từ frontend — mọi request phải qua backend.
@@ -543,6 +556,89 @@ export const translateService = {
   /** Dịch hàng loạt (batch), tối đa 20 items */
   batch: async (items: TranslateRequest[]): Promise<APIResponse<BatchTranslateResponse>> => {
     const response = await api.post<APIResponse<BatchTranslateResponse>>('/translate/batch', { items });
+    return response.data;
+  },
+
+  /** Lấy danh sách jobs trong admin (phân trang) */
+  listJobs: async (params?: { offset?: number; limit?: number }): Promise<APIResponse<{ items: TranslateJob[]; total: number }>> => {
+    const response = await api.get<APIResponse<{ items: TranslateJob[]; total: number }>>('/translate/jobs', { params });
+    return response.data;
+  },
+
+  /** Đặt lại trạng thái job để thử dịch lại */
+  retryJob: async (jobId: string): Promise<APIResponse<null>> => {
+    const response = await api.post<APIResponse<null>>(`/translate/jobs/${jobId}/retry`);
+    return response.data;
+  },
+
+  /** Xóa job khỏi database */
+  deleteJob: async (jobId: string): Promise<APIResponse<null>> => {
+    const response = await api.delete<APIResponse<null>>(`/translate/jobs/${jobId}`);
+    return response.data;
+  },
+};
+
+export interface AISummarizeResponse {
+  summary: string;
+  summary_en?: string;
+}
+
+export interface AIGenerateResponse {
+  title_vi: string;
+  title_en: string;
+  content_vi: string;
+  content_en: string;
+  meta_title_vi: string;
+  meta_title_en: string;
+  meta_desc_vi: string;
+  meta_desc_en: string;
+  excerpt_vi: string;
+  excerpt_en: string;
+  suggested_tags: string[];
+}
+
+export interface AIKeywordsResponse {
+  keywords: string[];
+}
+
+export interface AISEOResponse {
+  score: number;
+  grade: string;
+  suggestions: string[];
+}
+
+export interface AIAltTextResponse {
+  alt_text: string;
+}
+
+export interface AISentimentResponse {
+  sentiment: string;
+  score: number;
+}
+
+export const aiService = {
+  generatePost: async (topic: string): Promise<APIResponse<AIGenerateResponse>> => {
+    const response = await api.post<APIResponse<AIGenerateResponse>>('/ai/generate-post', { topic });
+    return response.data;
+  },
+  summarize: async (content: string, language: 'vi' | 'en' | 'both', maxWords?: number): Promise<APIResponse<AISummarizeResponse>> => {
+    const response = await api.post<APIResponse<AISummarizeResponse>>('/ai/summarize', { content, language, max_words: maxWords });
+    return response.data;
+  },
+  extractKeywords: async (content: string, language: string): Promise<APIResponse<AIKeywordsResponse>> => {
+    const response = await api.post<APIResponse<AIKeywordsResponse>>('/ai/keywords', { content, language });
+    return response.data;
+  },
+  scoreSEO: async (title: string, metaDesc: string, content: string): Promise<APIResponse<AISEOResponse>> => {
+    const response = await api.post<APIResponse<AISEOResponse>>('/ai/seo-score', { title, meta_desc: metaDesc, content });
+    return response.data;
+  },
+  generateAltText: async (imageUrl: string, context?: string): Promise<APIResponse<AIAltTextResponse>> => {
+    const response = await api.post<APIResponse<AIAltTextResponse>>('/ai/alt-text', { image_url: imageUrl, context });
+    return response.data;
+  },
+  analyzeSentiment: async (author: string, content: string): Promise<APIResponse<AISentimentResponse>> => {
+    const response = await api.post<APIResponse<AISentimentResponse>>('/ai/sentiment', { author, content });
     return response.data;
   },
 };

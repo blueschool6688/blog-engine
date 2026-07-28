@@ -17,7 +17,8 @@ import {
   X,
   Play,
   Search,
-  RefreshCw
+  RefreshCw,
+  FileText
 } from 'lucide-react';
 
 export const MediaLibrary: React.FC = () => {
@@ -38,6 +39,31 @@ export const MediaLibrary: React.FC = () => {
 
   const { showSuccess, showError, showWarning } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [PDFViewer, setPDFViewer] = useState<React.ComponentType<{ url: string; fileName?: string }> | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxSlides, setLightboxSlides] = useState<any[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [Lightbox, setLightbox] = useState<any>(null);
+  const [ZoomPlugin, setZoomPlugin] = useState<any>(null);
+  const [VideoPlugin, setVideoPlugin] = useState<any>(null);
+
+  // Dynamically load PDFViewer and Lightbox on browser environment only
+  useEffect(() => {
+    import('../components/PDFViewer').then((mod) => {
+      setPDFViewer(() => mod.PDFViewer);
+    });
+
+    Promise.all([
+      import('yet-another-react-lightbox'),
+      import('yet-another-react-lightbox/plugins/zoom'),
+      import('yet-another-react-lightbox/plugins/video'),
+      import('yet-another-react-lightbox/styles.css')
+    ]).then(([lightboxMod, zoomMod, videoMod]) => {
+      setLightbox(() => lightboxMod.default);
+      setZoomPlugin(() => zoomMod.default);
+      setVideoPlugin(() => videoMod.default);
+    });
+  }, []);
 
   const fetchMedia = async () => {
     setLoading(true);
@@ -83,8 +109,14 @@ export const MediaLibrary: React.FC = () => {
       // Size limits
       const isImage = file.type.startsWith('image/');
       const isVideo = file.type === 'video/mp4' || file.type === 'video/webm';
+      const isDoc = file.type === 'application/pdf' || 
+                    file.type === 'text/plain' ||
+                    file.type === 'application/msword' ||
+                    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                    file.type === 'application/vnd.ms-excel' ||
+                    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-      if (!isImage && !isVideo) {
+      if (!isImage && !isVideo && !isDoc) {
         showWarning(`Unsupported format: ${file.name}`);
         continue;
       }
@@ -96,6 +128,11 @@ export const MediaLibrary: React.FC = () => {
 
       if (isVideo && file.size > 500 * 1024 * 1024) {
         showWarning(`Video file exceeds 500MB limit: ${file.name}`);
+        continue;
+      }
+
+      if (isDoc && file.size > 50 * 1024 * 1024) {
+        showWarning(`Document file exceeds 50MB limit: ${file.name}`);
         continue;
       }
 
@@ -174,6 +211,39 @@ export const MediaLibrary: React.FC = () => {
     media.file_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handlePreviewMedia = (media: Media) => {
+    if (media.type === 'document' || media.mime_type === 'application/pdf') {
+      setPreviewMedia(media);
+    } else {
+      const mediaSlides = filteredMediaList
+        .filter((m) => m.type === 'image' || m.type === 'video')
+        .map((m) => {
+          if (m.type === 'video') {
+            return {
+              type: 'video' as const,
+              sources: [
+                {
+                  src: getFullUrl(m.url),
+                  type: m.mime_type || 'video/mp4',
+                },
+              ],
+            };
+          }
+          return {
+            src: getFullUrl(m.url),
+          };
+        });
+
+      const clickedIndex = filteredMediaList
+        .filter((m) => m.type === 'image' || m.type === 'video')
+        .findIndex((m) => m.id === media.id);
+
+      setLightboxSlides(mediaSlides);
+      setLightboxIndex(clickedIndex >= 0 ? clickedIndex : 0);
+      setLightboxOpen(true);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Delete Confirmation Modal */}
@@ -205,6 +275,12 @@ export const MediaLibrary: React.FC = () => {
                   autoPlay
                   className="max-w-full max-h-full"
                 />
+              ) : previewMedia.type === 'document' || previewMedia.mime_type === 'application/pdf' ? (
+                PDFViewer ? (
+                  <PDFViewer url={getFullUrl(previewMedia.url)} fileName={previewMedia.file_name} />
+                ) : (
+                  <div className="text-xs text-gray-500 py-4 text-center">Loading viewer component...</div>
+                )
               ) : (
                 <img
                   src={getFullUrl(previewMedia.url)}
@@ -247,14 +323,14 @@ export const MediaLibrary: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Upload, search, and manage files used throughout posts.</p>
         </div>
 
-        <div>
+    <div>
           <input
             type="file"
             multiple
             ref={fileInputRef}
             onChange={handleFileUpload}
             className="hidden"
-            accept="image/*,video/mp4,video/webm"
+            accept="image/*,video/mp4,video/webm,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -275,10 +351,10 @@ export const MediaLibrary: React.FC = () => {
       >
         <Upload className="w-10 h-10 text-gray-700 group-hover:text-accentBlue/60 transition-colors mb-3" />
         <p className="text-sm text-gray-400 font-sans">
-          Drag & Drop images or videos here to upload them directly
+          Drag & Drop images, videos, or documents (PDF, Word, Excel, Text) here to upload them directly
         </p>
         <p className="text-xs text-gray-600 mt-1 font-sans">
-          Max sizes: Image 10MB, Video 500MB
+          Max sizes: Image 10MB, Video 500MB, Document 50MB
         </p>
       </div>
 
@@ -290,6 +366,7 @@ export const MediaLibrary: React.FC = () => {
             { label: 'All Files', value: '' },
             { label: 'Images', value: 'image' },
             { label: 'Videos', value: 'video' },
+            { label: 'Documents', value: 'document' },
           ].map((btn) => (
             <button
               key={btn.label}
@@ -381,6 +458,11 @@ export const MediaLibrary: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                  ) : media.type === 'document' || media.mime_type === 'application/pdf' ? (
+                    <div className="w-full h-full bg-slate-900/60 flex flex-col items-center justify-center text-red-500 gap-2 p-4">
+                      <FileText className="w-10 h-10 group-hover:scale-105 transition-transform" />
+                      <span className="text-[10px] text-gray-400 text-center truncate w-full font-bold">{media.file_name}</span>
+                    </div>
                   ) : (
                     <img
                       src={getFullUrl(media.thumbnail_url || media.url)}
@@ -393,7 +475,13 @@ export const MediaLibrary: React.FC = () => {
                   {!isProcessing && (
                     <div className="absolute top-2.5 left-2.5 z-10 flex gap-1.5">
                       <span className="bg-slate-950/80 border border-slate-800/80 backdrop-blur-sm text-[9px] font-bold text-gray-300 px-1.5 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
-                        {media.type === 'video' ? <Film className="w-2.5 h-2.5" /> : <ImageIcon className="w-2.5 h-2.5" />}
+                        {media.type === 'video' ? (
+                          <Film className="w-2.5 h-2.5" />
+                        ) : media.type === 'document' || media.mime_type === 'application/pdf' ? (
+                          <FileText className="w-2.5 h-2.5" />
+                        ) : (
+                          <ImageIcon className="w-2.5 h-2.5" />
+                        )}
                         {media.type}
                       </span>
                     </div>
@@ -415,7 +503,7 @@ export const MediaLibrary: React.FC = () => {
 
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => setPreviewMedia(media)}
+                        onClick={() => handlePreviewMedia(media)}
                         className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-gray-400 hover:text-white transition-colors"
                         title="Preview details"
                       >
@@ -458,6 +546,16 @@ export const MediaLibrary: React.FC = () => {
             Next
           </button>
         </div>
+      )}
+      {/* Lightbox Modal */}
+      {lightboxOpen && Lightbox && (
+        <Lightbox
+          open={lightboxOpen}
+          close={() => setLightboxOpen(false)}
+          index={lightboxIndex}
+          slides={lightboxSlides}
+          plugins={[ZoomPlugin, VideoPlugin].filter(Boolean)}
+        />
       )}
     </div>
   );

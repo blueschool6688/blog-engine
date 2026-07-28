@@ -7,9 +7,9 @@ const (
 	// HTTPClientTimeout: timeout tổng thể của http.Client (connection + toàn bộ response)
 	HTTPClientTimeout = 60 * time.Second
 	// ChunkTimeout: context timeout riêng cho mỗi lần dịch 1 chunk
-	ChunkTimeout = 15 * time.Second
+	ChunkTimeout = 45 * time.Second
 	// TotalRequestTimeout: timeout tối đa cho toàn bộ request đồng bộ (tất cả chunks)
-	TotalRequestTimeout = 90 * time.Second
+	TotalRequestTimeout = 180 * time.Second
 	// MaxChunkRetries: số lần retry tối đa cho mỗi chunk bị lỗi
 	MaxChunkRetries = 2
 )
@@ -17,7 +17,7 @@ const (
 // ─── Cấu hình chunking ────────────────────────────────────────────────────────
 const (
 	// DefaultChunkSize: số ký tự tối đa mỗi chunk (cấu hình qua TRANSLATE_CHUNK_SIZE)
-	DefaultChunkSize = 2000
+	DefaultChunkSize = 1200
 	// SyncLengthLimit: ngưỡng ký tự để quyết định sync vs async
 	// len(content) <= SyncLengthLimit → sync, > SyncLengthLimit → async job
 	SyncLengthLimit = 3000

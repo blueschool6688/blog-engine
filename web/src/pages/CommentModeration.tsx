@@ -189,6 +189,7 @@ export const CommentModeration: React.FC = () => {
                 <tr className="border-b border-slate-800/50 text-xs font-semibold text-gray-400 uppercase bg-slate-900/10">
                   <th className="p-4 w-[180px]">Author</th>
                   <th className="p-4">Comment Content</th>
+                  <th className="p-4 w-[120px]">Spam Score</th>
                   <th className="p-4 w-[100px]">Status</th>
                   <th className="p-4 w-[130px]">Created At</th>
                   <th className="p-4 text-right w-[150px]">Actions</th>
@@ -203,6 +204,24 @@ export const CommentModeration: React.FC = () => {
                     </td>
                     <td className="p-4 align-top text-sm text-gray-300 font-sans leading-relaxed whitespace-pre-wrap max-w-lg break-words">
                       {item.content}
+                    </td>
+                    <td className="p-4 align-top text-sm font-sans">
+                      {item.spam_score !== undefined && item.spam_score !== null ? (
+                        <div className="space-y-1">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            item.spam_score >= 0.85
+                              ? 'bg-red-500/15 border border-red-500/25 text-red-500'
+                              : item.spam_score >= 0.5
+                              ? 'bg-amber-500/15 border border-amber-500/25 text-amber-500'
+                              : 'bg-green-500/15 border border-green-500/25 text-green-500'
+                          }`}>
+                            {item.spam_score >= 0.85 ? 'Spam 🚨' : item.spam_score >= 0.5 ? 'Suspicious ⚠️' : 'Safe ✓'}
+                          </span>
+                          <p className="text-[10px] text-gray-500 font-medium">Score: {(item.spam_score * 100).toFixed(0)}%</p>
+                        </div>
+                      ) : (
+                        <span className="text-gray-600 text-xs">—</span>
+                      )}
                     </td>
                     <td className="p-4 align-top text-sm">
                       {item.status === 'approved' ? (

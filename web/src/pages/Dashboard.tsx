@@ -25,6 +25,7 @@ import {
 } from 'recharts';
 import { dashboardService, getFullUrl } from '../services/api';
 import type { Post } from '../services/api';
+import { Skeleton } from 'antd';
 
 export async function loader() {
   return null;
@@ -168,7 +169,7 @@ export const Dashboard: React.FC = () => {
                   {card.title}
                 </p>
                 {loading ? (
-                  <div className="h-8 w-16 bg-slate-800/60 animate-pulse rounded mt-2"></div>
+                  <Skeleton active paragraph={false} title={{ width: '4rem' }} className="mt-2" />
                 ) : (
                   <h3 className="text-2xl font-bold mt-1 text-slate-850 dark:text-gray-100">{card.value}</h3>
                 )}
@@ -194,7 +195,7 @@ export const Dashboard: React.FC = () => {
           <div className="h-[280px] w-full pt-4">
             {loading ? (
               <div className="w-full h-full flex items-center justify-center">
-                <div className="w-8 h-8 border-4 border-accentBlue border-t-transparent rounded-full animate-spin"></div>
+                <Skeleton active paragraph={{ rows: 6 }} title={false} />
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -284,9 +285,11 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 w-full bg-slate-850 animate-pulse rounded-xl" />
+              <div key={i} className="p-4 bg-slate-950/40 border border-slate-800/40 rounded-xl">
+                <Skeleton active avatar={{ size: 40, shape: 'square' }} paragraph={{ rows: 1, width: '60%' }} title={{ width: '80%' }} />
+              </div>
             ))}
           </div>
         ) : stats.recentPosts.length === 0 ? (

@@ -11,7 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-
 // Handler xử lý HTTP request cho tính năng dịch thuật.
 type Handler struct {
 	svc *Service
@@ -42,7 +41,6 @@ func (h *Handler) Translate(c *fiber.Ctx) error {
 		ctx = context.Background()
 	}
 
-	// Auto-route: nội dung dài → async (nếu job store được cấu hình)
 	if len(req.Content) > SyncLengthLimit && h.svc.HasJobStore() {
 		jobID, err := h.svc.CreateAsyncJob(ctx, req)
 		if err != nil {
@@ -168,6 +166,68 @@ func (h *Handler) BatchTranslate(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, BatchTranslateResponse{Results: results}, "Batch translation successful")
+}
+
+// ListJobs xử lý GET /api/translate/jobs (phân trang)
+func (h *Handler) ListJobs(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	offset := c.QueryInt("offset", 0)
+	limit := c.QueryInt("limit", 10)
+	if limit <= 0 {
+		limit = 10
+	}
+
+	jobs, total, err := h.svc.ListJobs(ctx, offset, limit)
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to retrieve translate jobs", err.Error())
+	}
+
+	return response.Success(c, fiber.StatusOK, fiber.Map{
+		"items": jobs,
+		"total": total,
+	}, "Translate jobs retrieved successfully")
+}
+
+// RetryJob xử lý POST /api/translate/jobs/:job_id/retry
+func (h *Handler) RetryJob(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	jobID := c.Params("job_id")
+	if jobID == "" {
+		return response.Error(c, fiber.StatusBadRequest, "job_id is required", nil)
+	}
+
+	if err := h.svc.RetryJob(ctx, jobID); err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to retry translate job", err.Error())
+	}
+
+	return response.Success(c, fiber.StatusOK, nil, "Translate job set back to pending successfully")
+}
+
+// DeleteJob xử lý DELETE /api/translate/jobs/:job_id
+func (h *Handler) DeleteJob(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	jobID := c.Params("job_id")
+	if jobID == "" {
+		return response.Error(c, fiber.StatusBadRequest, "job_id is required", nil)
+	}
+
+	if err := h.svc.DeleteJob(ctx, jobID); err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Failed to delete translate job", err.Error())
+	}
+
+	return response.Success(c, fiber.StatusOK, nil, "Translate job deleted successfully")
 }
 
 // validateTranslateRequest kiểm tra tính hợp lệ của request.

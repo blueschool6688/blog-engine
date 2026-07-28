@@ -64,6 +64,12 @@ import (
 	// Translate Domain
 	translateDomain "backend/internal/translate"
 
+	// AI / Generation Domain
+	aiClientPkg "backend/pkg/ai"
+	aiGenerateDomain "backend/internal/aigenerate"
+	aiDomain "backend/internal/ai"
+	discordWebhook "backend/internal/webhook/discord"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
@@ -140,9 +146,25 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 
 	auditHandler := auditHandlers.NewAuditHandler(auditSvc)
 
+	// Khởi tạo AI Generate Domain & Discord Webhook
+	aiClient := aiClientPkg.NewClient(cfg.NVIDIAAPIKey, cfg.NVIDIAModel)
+	spamClient := aiClientPkg.NewClient(cfg.NVIDIAAPIKey, cfg.NVIDIASpamModel)
+	aiGenerateSvc := aiGenerateDomain.NewServiceWithSpamModel(aiClient, spamClient, log)
+	discordWebhookHandler := discordWebhook.NewHandler(
+		aiGenerateSvc,
+		postCmdService,
+		db,
+		cfg.DiscordPublicKey,
+		cfg.DiscordBotSecret,
+		cfg.DiscordAuthorID,
+		cfg.AppURL,
+		log,
+	)
+	aiHandler := aiDomain.NewHandler(aiGenerateSvc)
+
 	commentRepo := commentRepository.NewCommentRepository(db)
 	reactionRepo := commentRepository.NewReactionRepository(db)
-	commentSvc := commentService.NewCommentService(commentRepo, reactionRepo, db)
+	commentSvc := commentService.NewCommentService(commentRepo, reactionRepo, db, aiGenerateSvc)
 	commentHandler := commentHandlers.NewCommentHandler(commentSvc, auditSvc)
 
 	// Khởi tạo Translate Domain (Phase 2: job store + configurable chunk size)
@@ -219,6 +241,9 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	api := app.Group("/api")
 	api.Get("/settings", settingsHandler.GetSettings)
 
+	// Discord Webhook
+	api.Post("/webhooks/discord", discordWebhookHandler.Handle)
+
 	// ── Translate routes (public, no JWT, separate rate limiter) ────────────
 	translateLimiter := limiter.New(limiter.Config{
 		Max:        30,
@@ -276,6 +301,14 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	// Settings
 	protected.Put("/settings", settingsHandler.UpdateSettings)
 
+	// AI Routes
+	protected.Post("/ai/generate-post", aiHandler.GeneratePost)
+	protected.Post("/ai/summarize", aiHandler.Summarize)
+	protected.Post("/ai/keywords", aiHandler.ExtractKeywords)
+	protected.Post("/ai/seo-score", aiHandler.ScoreSEO)
+	protected.Post("/ai/alt-text", aiHandler.GenerateAltText)
+	protected.Post("/ai/sentiment", aiHandler.AnalyzeSentiment)
+
 	// Category Routes
 	protected.Get("/categories", categoryHandler.List)
 	protected.Post("/categories", categoryHandler.Create)
@@ -321,6 +354,11 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	protected.Get("/feedbacks", feedbackHandler.List)
 	protected.Put("/feedbacks/:id/status", feedbackHandler.UpdateStatus)
 	protected.Delete("/feedbacks/:id", feedbackHandler.Delete)
+
+	// Translate admin routes
+	protected.Get("/translate/jobs", translateHandler.ListJobs)
+	protected.Post("/translate/jobs/:job_id/retry", translateHandler.RetryJob)
+	protected.Delete("/translate/jobs/:job_id", translateHandler.DeleteJob)
 
 	// Admin-only Routes
 	adminOnly := protected.Group("", middleware.RoleGuard("admin"))

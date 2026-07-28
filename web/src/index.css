@@ -6,6 +6,12 @@
   --primary-color: #3b82f6;
   --btn-bg: #3b82f6;
   --text-color: #0f172a;
+  --custom-light-bg: #f8fafc;
+  --custom-dark-bg: #090d16;
+}
+
+.dark {
+  --text-color: #f8fafc;
 }
 
 .text-primary-global {
@@ -22,9 +28,14 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 antialiased transition-colors duration-200;
+    background-color: var(--custom-light-bg);
     color: var(--text-color) !important;
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    @apply antialiased transition-colors duration-300;
+  }
+
+  .dark body {
+    background-color: var(--custom-dark-bg);
   }
 }
 

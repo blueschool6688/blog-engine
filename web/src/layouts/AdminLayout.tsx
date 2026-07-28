@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, Outlet } from 'react-router';
-import { LayoutDashboard, Image, FileText, Folder, Tag, Heart, LogOut, Settings, Users, ActivitySquare, MessageSquare, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, Image, FileText, Folder, Tag, Heart, LogOut, Settings, Users, ActivitySquare, MessageSquare, Sun, Moon, Languages } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -21,6 +21,7 @@ export const AdminLayout: React.FC = () => {
     { name: t('tags'), path: '/admin/tags', icon: Tag },
     { name: t('comments'), path: '/admin/comments', icon: MessageSquare },
     { name: t('feedbacks'), path: '/admin/feedbacks', icon: Heart },
+    { name: t('translate_jobs'), path: '/admin/translate-jobs', icon: Languages },
     { name: t('settings'), path: '/admin/settings', icon: Settings },
     ...(isAdmin ? [
       { name: t('users'), path: '/admin/users', icon: Users },
@@ -47,11 +48,12 @@ export const AdminLayout: React.FC = () => {
     if (segment === 'settings') return t('settings');
     if (segment === 'users') return t('users');
     if (segment === 'audit-logs') return t('audit_logs');
+    if (segment === 'translate-jobs') return t('translate_jobs');
     return segment;
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-gray-150 transition-colors duration-200 font-sans">
+    <div className="min-h-screen flex bg-slate-50 dark:bg-black text-slate-800 dark:text-gray-150 transition-colors duration-200 font-sans">
       {/* Sidebar */}
       <aside className="w-64 glass-panel border-r border-slate-200 dark:border-slate-800/50 flex flex-col z-20">
         {/* Brand */}

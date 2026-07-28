@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { feedbackService } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { Star, Send, MessageSquare, Loader, CheckCircle } from 'lucide-react';
+import { Send, MessageSquare, Loader, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -16,8 +16,7 @@ export const FeedbackNew: React.FC = () => {
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
-  const [rating, setRating] = useState(5);
-  const [hoverRating, setHoverRating] = useState<number | null>(null);
+  const rating = 5;
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -92,8 +91,7 @@ export const FeedbackNew: React.FC = () => {
 
         <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 md:p-8 bg-white/40 dark:bg-slate-900/30">
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Rating Selector */}
-            <div className="space-y-2 flex flex-col items-center py-4 bg-slate-100/40 dark:bg-slate-950/20 rounded-xl border border-slate-200 dark:border-slate-800/30">
+            {/* <div className="space-y-2 flex flex-col items-center py-4 bg-slate-100/40 dark:bg-slate-950/20 rounded-xl border border-slate-200 dark:border-slate-800/30">
               <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 {t('overall_rating')}
               </label>
@@ -123,7 +121,7 @@ export const FeedbackNew: React.FC = () => {
                 {rating === 2 && t('poor')}
                 {rating === 1 && t('terrible')}
               </span>
-            </div>
+            </div> */}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">

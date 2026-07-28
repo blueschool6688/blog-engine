@@ -1,14 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { publicService, settingsService, getFullUrl } from '../services/api';
+import { publicService, settingsService } from '../services/api';
 import type { Post, Category, Tag } from '../services/api';
-import {
-  Calendar,
-  X,
-  Clock,
-} from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { Skeleton, Pagination, Input } from 'antd';
+import { Pagination, Input, Card, Tag as AntTag } from 'antd';
+import { PostCard, PostCardSkeleton } from '../components/PostCard';
 
 export async function loader() {
   return null;
@@ -37,9 +33,8 @@ function estimateReadTime(html: string): number {
 }
 
 export const BlogHome: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [lightboxImg, setLightboxImg] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +47,7 @@ export const BlogHome: React.FC = () => {
   const [heroSubtitle, setHeroSubtitle] = useState('');
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const LIMIT = 10;
+  const LIMIT = 6;
   const currentPage = parseInt(searchParams.get('page') || '1');
   const selectedCategories = searchParams.get('category') ? searchParams.get('category')!.split(',').filter(Boolean) : [];
   const selectedTags = searchParams.get('tag') ? searchParams.get('tag')!.split(',').filter(Boolean) : [];
@@ -183,118 +178,146 @@ export const BlogHome: React.FC = () => {
         )}
       </section>
 
-      <div className="space-y-4 select-text">
-        {/* Redesigned Premium Search Bar */}
-        <div className="w-full search-container relative group">
-          <Input.Search
-            placeholder={t('search_placeholder')}
-            enterButton={t('search_posts')}
-            size="large"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onSearch={(value) => {
-              const next = new URLSearchParams(searchParams);
-              if (value.trim()) {
-                next.set('q', value.trim());
-              } else {
-                next.delete('q');
-              }
-              next.set('page', '1');
-              setSearchParams(next);
-            }}
-            className="rounded-2xl overflow-hidden search-input-antd premium-search"
-          />
-        </div>
-
-        {/* Categories Multi-Select filters */}
-        {categories.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={clearFilters}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 ${!hasActiveFilter
-                ? 'bg-accentBlue text-white border-accentBlue shadow-md shadow-accentBlue/20'
-                : 'bg-white dark:bg-slate-900/40 text-slate-600 dark:text-gray-400 border-slate-200 dark:border-slate-800/80 hover:border-accentBlue/30 hover:text-accentBlue'
-                }`}
-            >
-              {t('all_posts')}
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => toggleFilter('category', cat.slug)}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 ${selectedCategories.includes(cat.slug)
-                  ? 'bg-accentBlue text-white border-accentBlue shadow-md shadow-accentBlue/20'
-                  : 'bg-white dark:bg-slate-900/40 text-slate-600 dark:text-gray-400 border-slate-200 dark:border-slate-800/80 hover:border-accentBlue/30 hover:text-accentBlue'
-                  }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Tags Multi-Select filters */}
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {tags.slice(0, 24).map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => toggleFilter('tag', tag.slug)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all duration-200 ${selectedTags.includes(tag.slug)
-                  ? 'bg-accentPurple/20 text-accentPurple border-accentPurple/40'
-                  : 'bg-slate-100 dark:bg-slate-900/40 text-slate-500 dark:text-gray-500 border-slate-200 dark:border-slate-800/60 hover:border-accentPurple/30 hover:text-accentPurple'
-                  }`}
-              >
-                #{tag.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Removable filter badges for active selections */}
-        {hasActiveFilter && (
-          <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/30">
-            <span className="text-xs text-slate-500 dark:text-gray-500">{t('filtering_by')}</span>
-            {selectedCategories.map(catSlug => (
-              <span key={catSlug} className="flex items-center gap-1.5 px-2.5 py-1 bg-accentBlue/10 text-accentBlue text-xs font-semibold rounded-full border border-accentBlue/20">
-                {categories.find(c => c.slug === catSlug)?.name || catSlug}
-                <button onClick={() => toggleFilter('category', catSlug)} className="hover:text-red-500 transition-colors" aria-label="Remove category">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-            {selectedTags.map(tagSlug => (
-              <span key={tagSlug} className="flex items-center gap-1.5 px-2.5 py-1 bg-accentPurple/10 text-accentPurple text-xs font-semibold rounded-full border border-accentPurple/20">
-                #{tags.find(t => t.slug === tagSlug)?.name || tagSlug}
-                <button onClick={() => toggleFilter('tag', tagSlug)} className="hover:text-red-500 transition-colors" aria-label="Remove tag">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-            {searchQuery && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-550/10 text-slate-500 text-xs font-semibold rounded-full border border-slate-500/20">
-                "{searchQuery}"
-                <button onClick={() => {
-                  const next = new URLSearchParams(searchParams);
+      <Card className="border border-slate-200/80 dark:border-slate-800/80 rounded-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-md shadow-sm">
+        <div className="space-y-4 select-text">
+          <div className="w-full">
+            <Input.Search
+              placeholder={t('search_placeholder')}
+              enterButton={t('search_posts')}
+              size="large"
+              allowClear
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onSearch={(value) => {
+                const next = new URLSearchParams(searchParams);
+                if (value.trim()) {
+                  next.set('q', value.trim());
+                } else {
                   next.delete('q');
-                  setSearchParams(next);
-                  setSearchInput('');
-                }} className="hover:text-red-500 transition-colors" aria-label="Remove search query">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            <button onClick={clearFilters} className="text-xs text-red-500 hover:underline font-semibold ml-2">Clear all</button>
+                }
+                next.set('page', '1');
+                setSearchParams(next);
+              }}
+              className="rounded-2xl overflow-hidden search-input-antd premium-search"
+            />
           </div>
-        )}
-      </div>
+
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider mr-1">
+                {t('categories') || 'Categories'}:
+              </span>
+              <AntTag.CheckableTag
+                checked={!hasActiveFilter}
+                onChange={clearFilters}
+                className={`rounded-full px-3.5 py-1 text-xs font-semibold border transition-all ${!hasActiveFilter
+                  ? '!bg-accentBlue !text-white'
+                  : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-gray-400 hover:text-accentBlue'
+                  }`}
+              >
+                {t('all_posts')}
+              </AntTag.CheckableTag>
+              {categories.map((cat) => {
+                const isSelected = selectedCategories.includes(cat.slug);
+                return (
+                  <AntTag.CheckableTag
+                    key={cat.id}
+                    checked={isSelected}
+                    onChange={() => toggleFilter('category', cat.slug)}
+                    className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-all ${isSelected
+                      ? '!bg-accentBlue !text-white'
+                      : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-gray-400 hover:text-accentBlue'
+                      }`}
+                  >
+                    {cat.name}
+                  </AntTag.CheckableTag>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Tags Multi-Select filters */}
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 items-center pt-1 border-t border-slate-100 dark:border-slate-800/40">
+              <span className="text-xs font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider mr-1">
+                {t('tags') || 'Tags'}:
+              </span>
+              {tags.slice(0, 24).map((tag) => {
+                const isSelected = selectedTags.includes(tag.slug);
+                return (
+                  <AntTag.CheckableTag
+                    key={tag.id}
+                    checked={isSelected}
+                    onChange={() => toggleFilter('tag', tag.slug)}
+                    className={`rounded-md px-2.5 py-0.5 text-[11px] font-semibold transition-all ${isSelected
+                      ? '!bg-accentPurple !text-white'
+                      : 'bg-slate-100/70 dark:bg-slate-800/40 text-slate-500 dark:text-gray-400 hover:text-accentPurple'
+                      }`}
+                  >
+                    #{tag.name}
+                  </AntTag.CheckableTag>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Active Filter Chips */}
+          {hasActiveFilter && (
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/40">
+              <span className="text-xs text-slate-400 font-semibold">{t('filtering_by')}:</span>
+              {selectedCategories.map((catSlug) => (
+                <AntTag
+                  key={catSlug}
+                  closable
+                  onClose={() => toggleFilter('category', catSlug)}
+                  color="blue"
+                  className="rounded-full px-2.5 py-0.5 font-semibold text-xs m-0"
+                >
+                  {categories.find((c) => c.slug === catSlug)?.name || catSlug}
+                </AntTag>
+              ))}
+              {selectedTags.map((tagSlug) => (
+                <AntTag
+                  key={tagSlug}
+                  closable
+                  onClose={() => toggleFilter('tag', tagSlug)}
+                  color="purple"
+                  className="rounded-full px-2.5 py-0.5 font-semibold text-xs m-0"
+                >
+                  #{tags.find((t) => t.slug === tagSlug)?.name || tagSlug}
+                </AntTag>
+              ))}
+              {searchQuery && (
+                <AntTag
+                  closable
+                  onClose={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete('q');
+                    setSearchParams(next);
+                    setSearchInput('');
+                  }}
+                  color="default"
+                  className="rounded-full px-2.5 py-0.5 font-semibold text-xs m-0"
+                >
+                  "{searchQuery}"
+                </AntTag>
+              )}
+              <AntTag
+                color="error"
+                className="cursor-pointer font-bold text-xs m-0 rounded-full px-2.5 py-0.5"
+                onClick={clearFilters}
+              >
+                Clear all
+              </AntTag>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {loading ? (
-        <div className="space-y-5">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex gap-5 p-5 bg-white dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl animate-pulse">
-              <Skeleton />
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <PostCardSkeleton key={i} />
           ))}
         </div>
       ) : posts.length === 0 ? (
@@ -309,91 +332,20 @@ export const BlogHome: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {posts.map((post) => {
-            const coverUrl = post.cover_media?.url ? getFullUrl(post.cover_media.url) : '';
-            const readTime = estimateReadTime(post.content || post.excerpt || '');
-            const primaryCategory = post.categories?.[0];
-
-            return (
-              <article
-                key={post.id}
-                className="group flex flex-col justify-between p-5 bg-white dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl hover:border-accentBlue/30 dark:hover:border-accentBlue/20 hover:shadow-lg hover:shadow-accentBlue/5 dark:hover:shadow-none transition-all duration-300"
-              >
-                <div className="space-y-4">
-                  {/* Thumbnail */}
-                  <Link
-                    to={`/posts/${post.slug}`}
-                    className="block aspect-[16/10] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800/60"
-                  >
-                    <img
-                      src={coverUrl}
-                      alt={post.title}
-                      className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
-                      loading="lazy"
-                    />
-                  </Link>
-
-                  {/* Content details */}
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {primaryCategory && (
-                        <button
-                          onClick={() => toggleFilter('category', primaryCategory.slug)}
-                          className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-accentBlue bg-accentBlue/8 border border-accentBlue/15 px-2.5 py-1 rounded-full hover:bg-accentBlue/15 transition-colors"
-                        >
-                          {primaryCategory.name}
-                        </button>
-                      )}
-
-                      {/* Render tag list and truncate if more than 3 tags */}
-                      {post.tags && post.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {post.tags.slice(0, 2).map(tag => (
-                            <span key={tag.id} className="text-[10px] bg-slate-100 dark:bg-slate-900/60 text-slate-500 dark:text-gray-400 px-2 py-0.5 rounded font-medium">
-                              #{tag.name}
-                            </span>
-                          ))}
-                          {post.tags.length > 2 && (
-                            <span className="text-[10px] bg-slate-100 dark:bg-slate-900/60 text-slate-400 dark:text-gray-500 px-2 py-0.5 rounded font-mono font-bold">
-                              +{post.tags.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <Link to={`/posts/${post.slug}`}>
-                      <h2 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-accentBlue transition-colors leading-snug line-clamp-2">
-                        {post.title}
-                      </h2>
-                    </Link>
-
-                    {post.excerpt && (
-                      <p className="text-xs text-slate-500 dark:text-gray-500 leading-relaxed line-clamp-2">
-                        {post.excerpt}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Meta details */}
-                <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 dark:text-gray-600 pt-4 border-t border-slate-100 dark:border-slate-800/30 mt-4">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {formatRelative(post.published_at || post.created_at, t)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {readTime} {t('read_time_mins')}
-                  </span>
-                </div>
-              </article>
-            );
-          })}
+          {posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              language={language}
+              t={t}
+              formatRelative={formatRelative}
+              estimateReadTime={estimateReadTime}
+              toggleFilter={toggleFilter}
+            />
+          ))}
         </div>
       )}
 
-      {/* ─── Pagination ─── */}
       {total > LIMIT && (
         <div className="flex justify-center pt-8 select-none">
           <Pagination
@@ -405,30 +357,10 @@ export const BlogHome: React.FC = () => {
           />
         </div>
       )}
-
-      {/* Lightbox Modal */}
-      {lightboxImg && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300"
-          onClick={() => setLightboxImg(null)}
-        >
-          <button
-            onClick={() => setLightboxImg(null)}
-            className="absolute top-6 right-6 p-2 rounded-full bg-slate-900/80 hover:bg-slate-850 text-gray-300 hover:text-white border border-slate-800 transition-all z-[110]"
-            title="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <img
-            src={lightboxImg}
-            alt="Lightbox review"
-            className="max-w-[92%] max-h-[92%] object-contain rounded-xl shadow-2xl border border-slate-800/40 animate-scale-up animate-fade-in"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
     </div>
   );
 };
 
 export default BlogHome;
+
+

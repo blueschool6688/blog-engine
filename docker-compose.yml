@@ -1,0 +1,140 @@
+version: '3.9'
+
+networks:
+  backend_net:
+    driver: bridge
+
+services:
+
+  # ── PostgreSQL 16 ─────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-root}
+      POSTGRES_DB: ${DB_NAME:-blogs}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-blogs}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Memcached ─────────────────────────────────────────────────────
+  memcached:
+    image: memcached:1.6-alpine
+    restart: unless-stopped
+    command: memcached -m 256
+    networks:
+      - backend_net
+
+  # ── Database Migration (init container — runs once then exits) ────
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["/migrate"]
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      MEMCACHED_ADDR: memcached:11211
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend_net
+    restart: "no"
+
+  # ── Go API Server ─────────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["/cms"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      MEMCACHED_ADDR: memcached:11211
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      memcached:
+        condition: service_started
+    networks:
+      - backend_net
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── Go Background Worker ──────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["/worker"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      MEMCACHED_ADDR: memcached:11211
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - backend_net
+
+  # ── React Router v7 SSR Frontend ─────────────────────────────────
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://api:8080
+        VITE_PUBLIC_API_URL: http://localhost:8080
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - backend_net
+    ports:
+      - "3000:3000"
+
+  # ── Adminer — DB GUI (dev profile only) ──────────────────────────
+  # Usage: docker compose --profile dev up -d
+  adminer:
+    image: adminer:latest
+    depends_on:
+      - db
+    networks:
+      - backend_net
+    ports:
+      - "8081:8080"
+    profiles:
+      - dev
+
+volumes:
+  postgres_data:
+  uploads:

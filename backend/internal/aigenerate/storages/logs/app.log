@@ -1,0 +1,59 @@
+INFO: 2026/07/24 09:38:43 service.go:70: [ai-generate] Generating post for topic: Tập tính và bí mật của loài cá sấu
+ERROR: 2026/07/24 09:40:02 service.go:107: [ai-generate] Failed to parse JSON: invalid character '\n' in string literal. Raw text:
+{
+  "title_vi": "Tập tính và Bí mật của Loài Cá Sấu: Khám phá Thế Giới Bí Ẩn của Chúng",
+  "title_en": "Crocodile Behavior and Secrets: Uncovering the Hidden World of these Ancient Creatures",
+  "content_vi": "<h2>Tập tính và Bí mật của Loài Cá Sấu</h2>
+<p>Loài cá sấu là một trong những loài động vật cổ xưa nhất trên Trái Đất, với lịch sử tiến hóa kéo dài hơn 245 triệu năm. Chúng là một phần quan trọng của hệ sinh thái, đóng vai trò là loài săn mồi hàng đầu trong nhiều môi trường sống khác nhau.</p>
+<h3>Tập tính của Cá Sấu</h3>
+<p>Cá sấu là loài động vật có tập tính xã hội phức tạp. Chúng thường sống thành đàn, với một con cá sấu đực lớn đóng vai trò là thủ lĩnh. Con đực này sẽ bảo vệ lãnh thổ và các con cái khỏi những kẻ xâm nhập.</p>
+<pre><code>
++ Cá sấu là loài động vật có tập tính xã hội phức tạp
++ Chúng thường sống thành đàn, với một con cá sấu đực lớn đóng vai trò là thủ lĩnh
++ Con đực này sẽ bảo vệ lãnh thổ và các con cái khỏi những kẻ xâm nhập
+</code></pre>
+<h3>Bí mật của Cá Sấu</h3>
+<p>Cá sấu có nhiều bí mật thú vị mà ít người biết đến. Dưới đây là một số ví dụ:</p>
+<ul>
+<li><strong>Cá sấu có thể sống đến 70 năm</strong>: Cá sấu là một trong những loài động vật có tuổi thọ cao nhất trên Trái Đất.</li>
+<li><strong>Cá sấu có thể chạy với tốc độ 24 km/h</strong>: Mặc dù chúng thường được biết đến với khả năng bơi lội, cá sấu cũng có thể chạy rất nhanh trên đất liền.</li>
+<li><strong>Cá sấu có thể giữ hơi thở trong 1 giờ</strong>: Cá sấu có khả năng giữ hơi thở trong thời gian dài, giúp chúng có thể lặn sâu dưới nước để săn mồi.</li>
+</ul>
+<blockquote>
+  Cá sấu là một trong những loài động vật cổ xưa nhất trên Trái Đất, với lịch sử tiến hóa kéo dài hơn 245 triệu năm.
+</blockquote>
+<h3>Kết luận</h3>
+<p>Cá sấu là loài động vật thú vị và phức tạp, với tập tính xã hội và bí mật thú vị. Việc hiểu biết về loài này có thể giúp chúng ta bảo vệ và bảo tồn chúng trong tự nhiên.</p>
+",
+  "content_en": "<h2>Crocodile Behavior and Secrets: Uncovering the Hidden World of these Ancient Creatures</h2>
+<p>Crocodiles are one of the oldest species on Earth, with a history of evolution spanning over 245 million years. They play a crucial role in their ecosystems, serving as top predators in various environments.</p>
+<h3>Crocodile Behavior</h3>
+<p>Crocodiles exhibit complex social behavior. They often live in groups, with a dominant male leading the pack. This male protects the territory and females from intruders.</p>
+<pre><code>
++ Crocodiles exhibit complex social behavior
++ They often live in groups, with a dominant male leading the pack
++ The dominant male protects the territory and females from intruders
+</code></pre>
+<h3>Crocodile Secrets</h3>
+<p>Crocodiles have many fascinating secrets that are lesser-known. Here are a few examples:</p>
+<ul>
+<li><strong>Crocodiles can live up to 70 years</strong>: Crocodiles are one of the longest-living species on Earth.</li>
+<li><strong>Crocodiles can run at speeds of 24 km/h</strong>: Despite being known for their swimming abilities, crocodiles can also run quickly on land.</li>
+<li><strong>Crocodiles can hold their breath for 1 hour</strong>: Crocodiles have the ability to hold their breath for extended periods, allowing them to dive deep into the water to hunt.</li>
+</ul>
+<blockquote>
+  Crocodiles are one of the oldest species on Earth, with a history of evolution spanning over 245 million years.
+</blockquote>
+<h3>Conclusion</h3>
+<p>Crocodiles are fascinating and complex creatures, with intriguing behavior and secrets. Understanding these animals can help us protect and conserve them in the wild.</p>
+",
+  "meta_title_vi": "Tập tính và Bí mật của Loài Cá Sấu",
+  "meta_title_en": "Crocodile Behavior and Secrets",
+  "meta_desc_vi": "Khám phá tập tính và bí mật của loài cá sấu, một trong những loài động vật cổ xưa nhất trên Trái Đất.",
+  "meta_desc_en": "Discover the behavior and secrets of crocodiles, one of the oldest species on Earth.",
+  "excerpt_vi": "Tập tính và bí mật của loài cá sấu: Khám phá thế giới bí ẩn của chúng. Cá sấu là loài động vật có tập tính xã hội phức tạp và nhiều bí mật thú vị.",
+  "excerpt_en": "Crocodile behavior and secrets: Uncovering the hidden world of these ancient creatures. Crocodiles are complex animals with fascinating behavior and secrets.",
+  "suggested_tags": ["cá sấu", "tập tính", "bí mật", "động vật", "thế giới tự nhiên"]
+}
+INFO: 2026/07/24 09:42:35 service.go:70: [ai-generate] Generating post for topic: Tập tính và bí mật của loài cá sấu
+INFO: 2026/07/24 09:45:18 service.go:112: [ai-generate] Successfully generated post titles VI: Tập tính và bí mật của loài cá sấu, EN: The Behavior and Secrets of Crocodiles
