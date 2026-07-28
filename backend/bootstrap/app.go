@@ -368,7 +368,6 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	adminOnly.Delete("/users/:id", userHandler.Delete)
 	adminOnly.Get("/audit-logs", auditHandler.List)
 
-	// Health (protected — any valid JWT can hit this)
 	protected.Get("/health", func(c *fiber.Ctx) error {
 		return c.Status(200).JSON(fiber.Map{
 			"status": "healthy",

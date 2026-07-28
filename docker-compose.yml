@@ -5,8 +5,6 @@ networks:
     driver: bridge
 
 services:
-
-  # ── PostgreSQL 16 ─────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -16,6 +14,8 @@ services:
       POSTGRES_DB: ${DB_NAME:-blogs}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - backend_net
     healthcheck:
@@ -25,7 +25,6 @@ services:
       retries: 5
       start_period: 10s
 
-  # ── Memcached ─────────────────────────────────────────────────────
   memcached:
     image: memcached:1.6-alpine
     restart: unless-stopped
@@ -33,7 +32,6 @@ services:
     networks:
       - backend_net
 
-  # ── Database Migration (init container — runs once then exits) ────
   migrate:
     build:
       context: ./backend
@@ -51,7 +49,6 @@ services:
       - backend_net
     restart: "no"
 
-  # ── Go API Server ─────────────────────────────────────────────────
   api:
     build:
       context: ./backend
@@ -75,12 +72,6 @@ services:
       - backend_net
     ports:
       - "8080:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
 
   # ── Go Background Worker ──────────────────────────────────────────
   worker:
@@ -116,7 +107,7 @@ services:
       NODE_ENV: production
     depends_on:
       api:
-        condition: service_healthy
+        condition: service_started
     networks:
       - backend_net
     ports:

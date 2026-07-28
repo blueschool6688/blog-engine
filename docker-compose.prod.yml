@@ -1,19 +1,24 @@
-# Production override — layer on top of docker-compose.yml
-# Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-#
-# This file:
-#   - Removes exposed ports from api/web (Nginx handles traffic)
-#   - Adds Nginx reverse proxy with SSL
-#   - Sets resource limits
-#   - Disables adminer
 version: '3.9'
+
+# ════════════════════════════════════════════════════════════
+# docker-compose.prod.yml — Production overrides
+#
+# Cách dùng:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     --env-file .env.docker up -d
+#
+# Trước khi deploy, thay "yourdomain.com" bằng domain thật của bạn
+# ở 2 chỗ:
+#   1. VITE_PUBLIC_API_URL bên dưới
+#   2. nginx/nginx.conf → server_name
+# ════════════════════════════════════════════════════════════
 
 services:
 
   api:
-    ports: []    # Hidden behind Nginx
+    ports: []          # Ẩn sau Nginx, không expose ra host
     restart: always
+    env_file: .env.docker
     deploy:
       resources:
         limits:
@@ -22,19 +27,25 @@ services:
 
   worker:
     restart: always
+    env_file: .env.docker
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
 
+  migrate:
+    env_file: .env.docker
+
   web:
-    ports: []    # Hidden behind Nginx
+    ports: []          # Ẩn sau Nginx, không expose ra host
     restart: always
     build:
       args:
+        # URL nội bộ Docker: Node SSR gọi api trong cùng network
         VITE_API_URL: http://api:8080
-        # ← Change to your actual domain:
+        # URL công khai: Browser JS gọi API → phải là domain thật
+        # ↓↓ THAY "yourdomain.com" BẰNG DOMAIN THẬT CỦA BẠN ↓↓
         VITE_PUBLIC_API_URL: https://yourdomain.com
     deploy:
       resources:
@@ -53,11 +64,14 @@ services:
     image: nginx:alpine
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80"    # HTTP → redirect 301 → HTTPS
+      - "443:443"  # HTTPS với SSL cert
     volumes:
+      # ↓ nginx.conf đã được cập nhật với server_name yourdomain.com
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # ↓ Đặt SSL cert tại: nginx/ssl/fullchain.pem và privkey.pem
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      # ↓ Serve file upload tĩnh trực tiếp từ Nginx (nhanh hơn proxy)
       - uploads:/app/uploads:ro
     depends_on:
       - api
@@ -65,7 +79,7 @@ services:
     networks:
       - backend_net
 
-  # Disable adminer in production
+  # Tắt adminer trong production
   adminer:
     profiles:
       - disabled

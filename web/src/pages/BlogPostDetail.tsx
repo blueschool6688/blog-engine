@@ -203,17 +203,16 @@ export const BlogPostDetail: React.FC = () => {
       .then((res) => {
         const p = res.data;
         setPost(p);
-        
+
         // Fetch related posts from same category or latest
-        const primaryCat = p?.categories?.[0]?.slug;
-        publicService.getPosts({ category: primaryCat, limit: 4 })
+        const primaryCatId = p?.categories?.[0]?.id;
+        publicService.getPosts({ category_id: primaryCatId, limit: 4 })
           .then((relRes) => {
-            if (relRes.data) {
-              const filtered = relRes.data.filter((item) => item.id !== p.id).slice(0, 3);
-              setRelatedPosts(filtered);
-            }
+            const items = relRes.data?.items || [];
+            const filtered = items.filter((item: any) => item.id !== p.id).slice(0, 3);
+            setRelatedPosts(filtered);
           })
-          .catch(() => {});
+          .catch(() => { });
       })
       .catch(() => navigate('/'))
       .finally(() => setLoading(false));
@@ -766,7 +765,7 @@ export const BlogPostDetail: React.FC = () => {
                       t={t}
                       formatRelative={(dateStr) => dateStr}
                       estimateReadTime={() => 5}
-                      toggleFilter={() => {}}
+                      toggleFilter={() => { }}
                     />
                   ))}
                 </div>
