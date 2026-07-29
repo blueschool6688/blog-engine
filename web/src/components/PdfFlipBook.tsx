@@ -70,7 +70,7 @@ const PdfFlipBookInner: React.FC<PdfFlipBookInnerProps> = ({ fileUrl }) => {
       } else if (containerRef.current) {
         cw = containerRef.current.clientWidth;
       }
-      
+
       // If the container is very small (mobile), we still show 2 pages but they will be small
       // HTMLFlipBook always shows 2 pages when usePortrait={false}
       const pw = Math.floor(cw / 2);
@@ -82,7 +82,7 @@ const PdfFlipBookInner: React.FC<PdfFlipBookInnerProps> = ({ fileUrl }) => {
     if (containerRef.current) {
       observer.observe(containerRef.current);
     }
-    
+
     // Initial measure
     measure();
     window.addEventListener('resize', () => measure());
@@ -167,9 +167,8 @@ const PdfFlipBookInner: React.FC<PdfFlipBookInnerProps> = ({ fileUrl }) => {
   return (
     <div
       ref={containerRef}
-      className={`flex flex-col gap-4 transition-all duration-300 ${
-        expanded ? 'fixed inset-2 z-50 bg-slate-950/98 p-4 rounded-2xl overflow-auto' : ''
-      }`}
+      className={`flex flex-col gap-4 transition-all duration-300 ${expanded ? 'fixed inset-2 z-50 bg-slate-950/98 p-4 rounded-2xl overflow-auto' : ''
+        }`}
     >
       {/* ── Toolbar ── */}
       <div className="flex items-center justify-between gap-3 px-1 flex-wrap">
@@ -236,7 +235,7 @@ const PdfFlipBookInner: React.FC<PdfFlipBookInnerProps> = ({ fileUrl }) => {
       </div>
 
       {/* ── Flipbook ── */}
-      <div className="flex justify-center overflow-hidden">
+      <div className="flex justify-center overflow-auto">
         <Document
           file={fileUrl}
           onLoadSuccess={({ numPages: n }) => setNumPages(n)}

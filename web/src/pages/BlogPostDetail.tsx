@@ -24,17 +24,17 @@ import { PostCard } from '../components/PostCard';
 export async function loader({ params }: { params: any }) {
   const slug = params.slug;
   if (!slug) return { post: null, relatedPosts: [] };
-  
+
   try {
     const postRes = await publicService.getPostBySlug(slug);
     const post = postRes.data;
-    
+
     let relatedPosts = [];
     if (post?.categories?.[0]?.id) {
       const relRes = await publicService.getPosts({ category_id: post.categories[0].id, limit: 4 });
       relatedPosts = (relRes.data?.items || []).filter((item: any) => item.id !== post.id).slice(0, 3);
     }
-    
+
     return { post, relatedPosts };
   } catch (err) {
     return { post: null, relatedPosts: [] };
@@ -465,360 +465,429 @@ export const BlogPostDetail: React.FC = () => {
         .dark .post-content hr { border-top-color: #1e293b; }
       `}</style>
 
-      <div className="max-w-6xl mx-auto">
-        {/* Breadcrumbs */}
-        <nav className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-gray-500 mb-6 flex-wrap" aria-label="Breadcrumb">
-          <Link to="/" className="flex items-center gap-1 hover:text-accentBlue transition-colors font-medium">
-            <Home className="w-3.5 h-3.5" />
-            <span>{t('home')}</span>
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-350" />
-          {primaryCategory && buildCategoryBreadcrumbs(primaryCategory).map((crumb) => (
-            <React.Fragment key={crumb.id}>
-              <Link to={`/?category=${crumb.slug}`} className="hover:text-accentBlue transition-colors font-medium">
-                {language === 'en' ? (crumb.name_en || crumb.name) : crumb.name}
-              </Link>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-355" />
-            </React.Fragment>
-          ))}
-          <span className="text-slate-700 dark:text-gray-300 font-medium truncate max-w-[180px] md:max-w-sm">
-            {language === 'en' ? (post.title_en || post.title) : post.title}
-          </span>
-        </nav>
-
-        <div className={`flex flex-col gap-8 lg:gap-12 items-start ${post.is_document ? 'lg:flex-col' : 'lg:flex-row'}`}>
-          <article className={`flex-1 min-w-0 ${post.is_document ? 'w-full' : ''}`}>
-            {primaryCategory && (
-              <div className="mb-4">
-                <Link
-                  to={`/?category=${primaryCategory.slug}`}
-                  className="inline-flex items-center gap-1.5 bg-accentBlue/10 text-accentBlue text-[11px] font-bold px-3 py-1.5 rounded-full border border-accentBlue/20 hover:bg-accentBlue/15 transition-colors"
-                >
-                  <Tag className="w-3 h-3" />
-                  {language === 'en' ? (primaryCategory.name_en || primaryCategory.name) : primaryCategory.name}
-                </Link>
+      {/* DEDICATED FULL SCREEN PDF VIEW */}
+      {post.is_document ? (
+        <div className="fixed inset-0 z-[99999] bg-[#0f172a] overflow-auto flex flex-col">
+          {/* Top Navbar */}
+          <div className="absolute top-0 left-0 right-0 z-10 h-[60px] bg-slate-950/80 backdrop-blur-md border-b border-slate-800/50 flex items-center justify-between px-4 sm:px-6 shadow-xl">
+            <div className="flex items-center gap-4">
+              <button onClick={() => navigate(-1)} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-all">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex flex-col">
+                <h1 className="font-bold text-slate-200 text-sm sm:text-base truncate max-w-[200px] sm:max-w-md lg:max-w-xl">
+                  {language === 'en' ? (post.title_en || post.title) : post.title}
+                </h1>
+                {post.author && (
+                  <span className="text-[10px] text-gray-400 font-medium">Bởi {post.author.name}</span>
+                )}
               </div>
-            )}
+            </div>
 
-            <h1 className="text-2xl md:text-[2rem] lg:text-[2.25rem] font-extrabold text-slate-900 dark:text-white leading-tight mb-5 tracking-tight">
-              {language === 'en' ? (post.title_en || post.title) : post.title}
-            </h1>
-
-            {(post.excerpt || post.excerpt_en) && (
-              <div className="mb-6 flex items-center">
-                <Button
-                  type="dashed"
+            <div className="flex items-center gap-3">
+              {(post.excerpt || post.excerpt_en) && (
+                <button
                   onClick={() => setShowSummaryModal(true)}
-                  icon={<Sparkles className="w-3.5 h-3.5 text-accentBlue" />}
-                  className="border-accentBlue/30 hover:border-accentBlue text-accentBlue hover:text-accentPurple rounded-xl font-bold flex items-center gap-1.5 h-9 text-xs"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accentBlue/20 text-accentBlue hover:bg-accentBlue hover:text-white border border-accentBlue/30 rounded-xl text-xs font-bold transition-all shadow-[0_0_15px_rgba(56,189,248,0.15)]"
                 >
-                  {language === 'vi' ? 'Xem tóm tắt nhanh' : 'View quick summary'}
-                </Button>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{language === 'vi' ? 'Tóm tắt' : 'Summary'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* PDF Viewer Area */}
+          <div className="flex-1 w-full h-full pt-[80px] pb-6 px-4 md:px-8 lg:px-12 flex items-center justify-center">
+            {post.pdf_media && PdfFlipBook ? (
+              <div className="w-full h-full  mx-auto rounded-xl overflow-auto shadow-2xl">
+                <PdfFlipBook fileUrl={getFullUrl(post.pdf_media.url)} />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-3">
+                <div className="w-8 h-8 border-4 border-slate-700 border-t-accentBlue rounded-full animate-spin"></div>
+                <p className="text-sm font-medium animate-pulse">Đang tải trình đọc sách lật...</p>
               </div>
             )}
+          </div>
 
-            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-gray-500 pb-6 mb-8 border-b border-slate-200 dark:border-slate-800/80">
-              {post.author && (
-                <div className="flex items-center gap-2">
-                  {post.author.avatar_url ? (
-                    <img
-                      src={getFullUrl(post.author.avatar_url)}
-                      alt={post.author.name}
-                      className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
-                    />
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-accentBlue to-accentPurple flex items-center justify-center text-white text-xs font-extrabold shrink-0">
-                      {post.author.name ? post.author.name.charAt(0).toUpperCase() : 'A'}
-                    </div>
-                  )}
-                  <span className="font-semibold text-slate-700 dark:text-gray-300">{post.author.name}</span>
+          {/* Quick Summary Modal */}
+          <Modal
+            title={
+              <div className="flex items-center gap-2 text-accentBlue font-bold">
+                <Sparkles className="w-5 h-5" />
+                {language === 'vi' ? 'Tóm tắt bài viết' : 'Quick Summary'}
+              </div>
+            }
+            open={showSummaryModal}
+            onCancel={() => setShowSummaryModal(false)}
+            footer={null}
+            centered
+            className="dark-modal"
+          >
+            <div className="text-slate-600 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap mt-4">
+              {language === 'en' ? (post.excerpt_en || post.excerpt) : post.excerpt}
+            </div>
+          </Modal>
+        </div>
+      ) : (
+
+        <div className={`mx-auto max-w-6xl px-4 sm:px-6`}>
+          {/* Breadcrumbs */}
+          <nav className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-gray-500 mb-6 flex-wrap" aria-label="Breadcrumb">
+            <Link to="/" className="flex items-center gap-1 hover:text-accentBlue transition-colors font-medium">
+              <Home className="w-3.5 h-3.5" />
+              <span>{t('home')}</span>
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-350" />
+            {primaryCategory && buildCategoryBreadcrumbs(primaryCategory).map((crumb) => (
+              <React.Fragment key={crumb.id}>
+                <Link to={`/?category=${crumb.slug}`} className="hover:text-accentBlue transition-colors font-medium">
+                  {language === 'en' ? (crumb.name_en || crumb.name) : crumb.name}
+                </Link>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-355" />
+              </React.Fragment>
+            ))}
+            <span className="text-slate-700 dark:text-gray-300 font-medium truncate max-w-[180px] md:max-w-sm">
+              {language === 'en' ? (post.title_en || post.title) : post.title}
+            </span>
+          </nav>
+
+          <div className={`flex flex-col gap-8 lg:gap-12 items-start ${post.is_document ? 'lg:flex-col' : 'lg:flex-row'}`}>
+            <article className={`flex-1 min-w-0 ${post.is_document ? 'w-full' : ''}`}>
+              {primaryCategory && (
+                <div className="mb-4">
+                  <Link
+                    to={`/?category=${primaryCategory.slug}`}
+                    className="inline-flex items-center gap-1.5 bg-accentBlue/10 text-accentBlue text-[11px] font-bold px-3 py-1.5 rounded-full border border-accentBlue/20 hover:bg-accentBlue/15 transition-colors"
+                  >
+                    <Tag className="w-3 h-3" />
+                    {language === 'en' ? (primaryCategory.name_en || primaryCategory.name) : primaryCategory.name}
+                  </Link>
                 </div>
               )}
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>{formatRelative(post.published_at || post.created_at, t)}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                <span>{language === 'vi' ? `${readTime} phút đọc` : `${readTime} min read`}</span>
-              </div>
-            </div>
 
-            {post.is_document && post.pdf_media && (
-              <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-red-500/25 bg-slate-900/40 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-red-500">
-                    <FileText className="w-5 h-5" />
-                    <span className="text-sm font-bold">{post.pdf_media.file_name}</span>
-                  </div>
-                </div>
-                {PdfFlipBook ? (
-                  <PdfFlipBook fileUrl={getFullUrl(post.pdf_media.url)} />
-                ) : (
-                  <div className="text-xs text-gray-500 py-4 text-center">Đang tải trình đọc sách lật...</div>
-                )}
-              </div>
-            )}
+              <h1 className="text-2xl md:text-[2rem] lg:text-[2.25rem] font-extrabold text-slate-900 dark:text-white leading-tight mb-5 tracking-tight">
+                {language === 'en' ? (post.title_en || post.title) : post.title}
+              </h1>
 
-            {/* Cover image/video */}
-            {!post.is_document && post.cover_media?.url && (
-              <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-slate-200/60 dark:border-slate-800/60">
-                {post.cover_media!.type === 'video' ? (
-                  <video
-                    src={getFullUrl(post.cover_media!.url)}
-                    controls
-                    className="w-full aspect-video object-cover"
-                  />
-                ) : (
-                  <img
-                    src={getFullUrl(post.cover_media!.url)}
-                    alt={post.title}
-                    className="w-full aspect-video object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                    onClick={() => {
-                      setLightboxSlides([{ src: getFullUrl(post.cover_media!.url) }]);
-                      setLightboxIndex(0);
-                      setLightboxOpen(true);
-                    }}
-                  />
-                )}
-              </div>
-            )}
-            {toc.length > 0 && (
-              <div className="lg:hidden mb-6 border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden">
-                <button
-                  onClick={() => setTocOpen(!tocOpen)}
-                  className="w-full flex items-center justify-between px-4 py-3.5 bg-slate-50 dark:bg-slate-900/60 text-sm font-semibold text-slate-700 dark:text-gray-300 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <List className="w-4 h-4 text-accentBlue" />
-                    Mục lục bài viết ({toc.length} mục)
-                  </span>
-                  <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${tocOpen ? 'rotate-90' : ''}`} />
-                </button>
-                {tocOpen && (
-                  <nav className="bg-white dark:bg-slate-900/40 px-4 py-3 space-y-0.5 border-t border-slate-200 dark:border-slate-800/80">
-                    {toc.map((item) => (
-                      <a
-                        key={item.id}
-                        href={`#${item.id}`}
-                        onClick={(e) => {
-                          setTocOpen(false);
-                          handleTocClick(e, item.id);
-                        }}
-                        className={`block text-xs py-1.5 text-slate-600 dark:text-gray-400 hover:text-accentBlue transition-colors ${item.level === 3 ? 'pl-5' : 'pl-2'}`}
-                      >
-                        {item.text}
-                      </a>
-                    ))}
-                  </nav>
-                )}
-              </div>
-            )}
-
-            {/* Nội dung bài viết */}
-            <div
-              className="post-content post-content-wrapper"
-              dangerouslySetInnerHTML={{ __html: processedHtml }}
-            />
-
-            {post.gallery && post.gallery.length > 0 && (
-              <div className="mt-10 pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-4">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Image className="w-4.5 h-4.5 text-accentBlue" />
-                  <span>Hình ảnh ({post.gallery.length})</span>
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {post.gallery.map((item, idx) => {
-                    const slideList = post.gallery?.map((g) => {
-                      if (g.media.type === 'video') {
-                        return {
-                          type: 'video' as const,
-                          sources: [
-                            {
-                              src: getFullUrl(g.media.url),
-                              type: g.media.mime_type || 'video/mp4',
-                            },
-                          ],
-                        };
-                      }
-                      return {
-                        src: getFullUrl(g.media.url),
-                        title: g.caption || undefined,
-                        description: g.alt_text || undefined,
-                      };
-                    }) || [];
-
-                    return (
-                      <div key={item.id} className="group relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-900/10">
-                        <div
-                          onClick={() => {
-                            setLightboxSlides(slideList);
-                            setLightboxIndex(idx);
-                            setLightboxOpen(true);
-                          }}
-                          className="block aspect-[4/3] overflow-hidden cursor-pointer"
-                        >
-                          <img
-                            src={getFullUrl(item.media.thumbnail_url || item.media.url)}
-                            alt={item.alt_text || item.caption || post.title}
-                            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-350"
-                            loading="lazy"
-                          />
-                        </div>
-                        {item.caption && (
-                          <div className="p-2.5 text-center text-xs text-slate-500 dark:text-gray-400 bg-white/90 dark:bg-slate-950/80 border-t border-slate-100 dark:border-slate-800/50 line-clamp-2">
-                            {item.caption}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {post.tags && post.tags.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 mt-10 pt-6 border-t border-slate-200 dark:border-slate-800/80">
-                <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-gray-500 shrink-0" />
-                {post.tags.map((tag) => (
-                  <Link
-                    key={tag.id}
-                    to={`/?tag=${tag.slug}`}
-                    className="px-3 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-900/60 text-slate-600 dark:text-gray-400 hover:bg-accentBlue/10 hover:text-accentBlue border border-slate-200 dark:border-slate-800/80 hover:border-accentBlue/20 rounded-full transition-all"
+              {(post.excerpt || post.excerpt_en) && (
+                <div className="mb-6 flex items-center">
+                  <Button
+                    type="dashed"
+                    onClick={() => setShowSummaryModal(true)}
+                    icon={<Sparkles className="w-3.5 h-3.5 text-accentBlue" />}
+                    className="border-accentBlue/30 hover:border-accentBlue text-accentBlue hover:text-accentPurple rounded-xl font-bold flex items-center gap-1.5 h-9 text-xs"
                   >
-                    #{tag.name}
-                  </Link>
-                ))}
-              </div>
-            )}
+                    {language === 'vi' ? 'Xem tóm tắt nhanh' : 'View quick summary'}
+                  </Button>
+                </div>
+              )}
 
-            {post.author && (
-              <div onClick={() => navigate(`/authors/${post.author?.nickname}`)} className="mt-8 p-6 bg-white dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/80 rounded-2xl flex items-start gap-4 cursor-pointer hover:scale-[1.01] transition-all">
-                {post.author.avatar_url ? (
-                  <img
-                    src={getFullUrl(post.author.avatar_url)}
-                    alt={post.author.name}
-                    className="w-14 h-14 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-accentBlue to-accentPurple flex items-center justify-center text-white text-2xl font-extrabold shrink-0">
-                    {post.author.name ? post.author.name.charAt(0).toUpperCase() : 'A'}
+              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-gray-500 pb-6 mb-8 border-b border-slate-200 dark:border-slate-800/80">
+                {post.author && (
+                  <div className="flex items-center gap-2">
+                    {post.author.avatar_url ? (
+                      <img
+                        src={getFullUrl(post.author.avatar_url)}
+                        alt={post.author.name}
+                        className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-accentBlue to-accentPurple flex items-center justify-center text-white text-xs font-extrabold shrink-0">
+                        {post.author.name ? post.author.name.charAt(0).toUpperCase() : 'A'}
+                      </div>
+                    )}
+                    <span className="font-semibold text-slate-700 dark:text-gray-300">{post.author.name}</span>
                   </div>
                 )}
-                <div className="space-y-1.5 flex-1">
-                  <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <User className="w-4 h-4 text-accentBlue" />
-                    {post.author.name}
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{formatRelative(post.published_at || post.created_at, t)}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{language === 'vi' ? `${readTime} phút đọc` : `${readTime} min read`}</span>
+                </div>
+              </div>
+
+              {post.is_document && post.pdf_media && (
+                <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-red-500/25 bg-slate-900/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-red-500">
+                      <FileText className="w-5 h-5" />
+                      <span className="text-sm font-bold">{post.pdf_media.file_name}</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-gray-500 leading-relaxed">
-                    {post.author.bio || 'Tác giả tại DevOps.vn — Chia sẻ kiến thức Cloud Native, Kubernetes và văn hóa DevOps.'}
-                  </p>
+                  {PdfFlipBook ? (
+                    <PdfFlipBook fileUrl={getFullUrl(post.pdf_media.url)} />
+                  ) : (
+                    <div className="text-xs text-gray-500 py-4 text-center">Đang tải trình đọc sách lật...</div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="mt-8">
-              <button
-                onClick={() => navigate(-1)}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-accentBlue dark:text-gray-500 dark:hover:text-accentBlue transition-colors group"
-              >
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                {t('back')}
-              </button>
-            </div>
-
-            {/* Related Posts Section */}
-            {relatedPosts.length > 0 && (
-              <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-accentBlue" />
-                    {language === 'vi' ? 'Bài viết tương tự' : 'Related Articles'}
-                  </h3>
-                  <Link to="/" className="text-xs font-semibold text-accentBlue hover:underline">
-                    {t('all_posts')}
-                  </Link>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  {relatedPosts.map((relPost) => (
-                    <PostCard
-                      key={relPost.id}
-                      post={relPost}
-                      language={language}
-                      t={t}
-                      formatRelative={(dateStr) => dateStr}
-                      estimateReadTime={() => 5}
-                      toggleFilter={() => { }}
+              {/* Cover image/video */}
+              {!post.is_document && post.cover_media?.url && (
+                <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-slate-200/60 dark:border-slate-800/60">
+                  {post.cover_media!.type === 'video' ? (
+                    <video
+                      src={getFullUrl(post.cover_media!.url)}
+                      controls
+                      className="w-full aspect-video object-cover"
                     />
-                  ))}
+                  ) : (
+                    <img
+                      src={getFullUrl(post.cover_media!.url)}
+                      alt={post.title}
+                      className="w-full aspect-video object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                      onClick={() => {
+                        setLightboxSlides([{ src: getFullUrl(post.cover_media!.url) }]);
+                        setLightboxIndex(0);
+                        setLightboxOpen(true);
+                      }}
+                    />
+                  )}
                 </div>
-              </div>
-            )}
-
-            <CommentSection postId={post.id} />
-          </article>
-
-          {!post.is_document && (
-            <aside className="hidden lg:block w-64 xl:w-72 shrink-0 sticky top-[76px] self-start">
-              <div className="space-y-5">
-                {toc.length > 0 && (
-                  <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm">
-                    <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-gray-500 mb-4 flex items-center gap-2">
-                      <List className="w-3.5 h-3.5" />
-                      {t('table_of_contents')}
-                    </h3>
-                    <nav className="space-y-0.5" aria-label="Table of contents">
+              )}
+              {toc.length > 0 && (
+                <div className="lg:hidden mb-6 border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden">
+                  <button
+                    onClick={() => setTocOpen(!tocOpen)}
+                    className="w-full flex items-center justify-between px-4 py-3.5 bg-slate-50 dark:bg-slate-900/60 text-sm font-semibold text-slate-700 dark:text-gray-300 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <List className="w-4 h-4 text-accentBlue" />
+                      Mục lục bài viết ({toc.length} mục)
+                    </span>
+                    <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${tocOpen ? 'rotate-90' : ''}`} />
+                  </button>
+                  {tocOpen && (
+                    <nav className="bg-white dark:bg-slate-900/40 px-4 py-3 space-y-0.5 border-t border-slate-200 dark:border-slate-800/80">
                       {toc.map((item) => (
                         <a
                           key={item.id}
                           href={`#${item.id}`}
-                          onClick={(e) => handleTocClick(e, item.id)}
-                          className={`flex items-center gap-1.5 text-[12.5px] leading-snug py-1.5 rounded-lg px-2.5 transition-all duration-200 group ${item.level === 3 ? 'pl-6 text-[11.5px]' : ''
-                            } ${activeId === item.id
-                              ? 'text-accentBlue font-semibold bg-accentBlue/8 dark:bg-accentBlue/12'
-                              : 'text-slate-500 dark:text-gray-500 hover:text-slate-800 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                            }`}
+                          onClick={(e) => {
+                            setTocOpen(false);
+                            handleTocClick(e, item.id);
+                          }}
+                          className={`block text-xs py-1.5 text-slate-600 dark:text-gray-400 hover:text-accentBlue transition-colors ${item.level === 3 ? 'pl-5' : 'pl-2'}`}
                         >
-                          {activeId === item.id && (
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-accentBlue shrink-0" />
-                          )}
-                          <span className="line-clamp-2">{item.text}</span>
+                          {item.text}
                         </a>
                       ))}
                     </nav>
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
 
-                {/* Share */}
-                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-3">
-                  <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-gray-500">
-                    {language === 'vi' ? 'Chia sẻ bài viết' : 'Share Article'}
+              {/* Nội dung bài viết */}
+              <div
+                className="post-content post-content-wrapper"
+                dangerouslySetInnerHTML={{ __html: processedHtml }}
+              />
+
+              {post.gallery && post.gallery.length > 0 && (
+                <div className="mt-10 pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-4">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Image className="w-4.5 h-4.5 text-accentBlue" />
+                    <span>Hình ảnh ({post.gallery.length})</span>
                   </h3>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => navigator.clipboard.writeText(window.location.href)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-800/80 transition-all"
-                    >
-                      <Copy className="w-3 h-3" />
-                      {language === 'vi' ? 'Sao chép link' : 'Copy Link'}
-                    </button>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {post.gallery.map((item, idx) => {
+                      const slideList = post.gallery?.map((g) => {
+                        if (g.media.type === 'video') {
+                          return {
+                            type: 'video' as const,
+                            sources: [
+                              {
+                                src: getFullUrl(g.media.url),
+                                type: g.media.mime_type || 'video/mp4',
+                              },
+                            ],
+                          };
+                        }
+                        return {
+                          src: getFullUrl(g.media.url),
+                          title: g.caption || undefined,
+                          description: g.alt_text || undefined,
+                        };
+                      }) || [];
+
+                      return (
+                        <div key={item.id} className="group relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-900/10">
+                          <div
+                            onClick={() => {
+                              setLightboxSlides(slideList);
+                              setLightboxIndex(idx);
+                              setLightboxOpen(true);
+                            }}
+                            className="block aspect-[4/3] overflow-hidden cursor-pointer"
+                          >
+                            <img
+                              src={getFullUrl(item.media.thumbnail_url || item.media.url)}
+                              alt={item.alt_text || item.caption || post.title}
+                              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-350"
+                              loading="lazy"
+                            />
+                          </div>
+                          {item.caption && (
+                            <div className="p-2.5 text-center text-xs text-slate-500 dark:text-gray-400 bg-white/90 dark:bg-slate-950/80 border-t border-slate-100 dark:border-slate-800/50 line-clamp-2">
+                              {item.caption}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+              )}
 
-                {/* Back link */}
-                <Link
-                  to="/"
-                  className="flex items-center justify-center gap-2 px-4 py-3 w-full bg-slate-100 dark:bg-slate-900/40 hover:bg-slate-200 dark:hover:bg-slate-800/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl text-sm font-semibold text-slate-600 dark:text-gray-400 transition-all group"
+              {post.tags && post.tags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 mt-10 pt-6 border-t border-slate-200 dark:border-slate-800/80">
+                  <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-gray-500 shrink-0" />
+                  {post.tags.map((tag) => (
+                    <Link
+                      key={tag.id}
+                      to={`/?tag=${tag.slug}`}
+                      className="px-3 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-900/60 text-slate-600 dark:text-gray-400 hover:bg-accentBlue/10 hover:text-accentBlue border border-slate-200 dark:border-slate-800/80 hover:border-accentBlue/20 rounded-full transition-all"
+                    >
+                      #{tag.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {post.author && (
+                <div onClick={() => navigate(`/authors/${post.author?.nickname}`)} className="mt-8 p-6 bg-white dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/80 rounded-2xl flex items-start gap-4 cursor-pointer hover:scale-[1.01] transition-all">
+                  {post.author.avatar_url ? (
+                    <img
+                      src={getFullUrl(post.author.avatar_url)}
+                      alt={post.author.name}
+                      className="w-14 h-14 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-accentBlue to-accentPurple flex items-center justify-center text-white text-2xl font-extrabold shrink-0">
+                      {post.author.name ? post.author.name.charAt(0).toUpperCase() : 'A'}
+                    </div>
+                  )}
+                  <div className="space-y-1.5 flex-1">
+                    <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <User className="w-4 h-4 text-accentBlue" />
+                      {post.author.name}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-gray-500 leading-relaxed">
+                      {post.author.bio || 'Tác giả tại DevOps.vn — Chia sẻ kiến thức Cloud Native, Kubernetes và văn hóa DevOps.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-8">
+                <button
+                  onClick={() => navigate(-1)}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-accentBlue dark:text-gray-500 dark:hover:text-accentBlue transition-colors group"
                 >
                   <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                  {language === 'vi' ? 'Xem tất cả bài viết' : 'View all articles'}
-                </Link>
+                  {t('back')}
+                </button>
               </div>
-            </aside>
-          )}
+
+              {/* Related Posts Section */}
+              {relatedPosts.length > 0 && (
+                <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-accentBlue" />
+                      {language === 'vi' ? 'Bài viết tương tự' : 'Related Articles'}
+                    </h3>
+                    <Link to="/" className="text-xs font-semibold text-accentBlue hover:underline">
+                      {t('all_posts')}
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {relatedPosts.map((relPost) => (
+                      <PostCard
+                        key={relPost.id}
+                        post={relPost}
+                        language={language}
+                        t={t}
+                        formatRelative={(dateStr) => dateStr}
+                        estimateReadTime={() => 5}
+                        toggleFilter={() => { }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <CommentSection postId={post.id} />
+            </article>
+
+            {!post.is_document && (
+              <aside className="hidden lg:block w-64 xl:w-72 shrink-0 sticky top-[76px] self-start">
+                <div className="space-y-5">
+                  {toc.length > 0 && (
+                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm">
+                      <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-gray-500 mb-4 flex items-center gap-2">
+                        <List className="w-3.5 h-3.5" />
+                        {t('table_of_contents')}
+                      </h3>
+                      <nav className="space-y-0.5" aria-label="Table of contents">
+                        {toc.map((item) => (
+                          <a
+                            key={item.id}
+                            href={`#${item.id}`}
+                            onClick={(e) => handleTocClick(e, item.id)}
+                            className={`flex items-center gap-1.5 text-[12.5px] leading-snug py-1.5 rounded-lg px-2.5 transition-all duration-200 group ${item.level === 3 ? 'pl-6 text-[11.5px]' : ''
+                              } ${activeId === item.id
+                                ? 'text-accentBlue font-semibold bg-accentBlue/8 dark:bg-accentBlue/12'
+                                : 'text-slate-500 dark:text-gray-500 hover:text-slate-800 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                              }`}
+                          >
+                            {activeId === item.id && (
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-accentBlue shrink-0" />
+                            )}
+                            <span className="line-clamp-2">{item.text}</span>
+                          </a>
+                        ))}
+                      </nav>
+                    </div>
+                  )}
+
+                  {/* Share */}
+                  <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-3">
+                    <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-gray-500">
+                      {language === 'vi' ? 'Chia sẻ bài viết' : 'Share Article'}
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(window.location.href)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-800/80 transition-all"
+                      >
+                        <Copy className="w-3 h-3" />
+                        {language === 'vi' ? 'Sao chép link' : 'Copy Link'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Back link */}
+                  <Link
+                    to="/"
+                    className="flex items-center justify-center gap-2 px-4 py-3 w-full bg-slate-100 dark:bg-slate-900/40 hover:bg-slate-200 dark:hover:bg-slate-800/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl text-sm font-semibold text-slate-600 dark:text-gray-400 transition-all group"
+                  >
+                    <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                    {language === 'vi' ? 'Xem tất cả bài viết' : 'View all articles'}
+                  </Link>
+                </div>
+              </aside>
+            )}
+          </div>
         </div>
-      </div>
+
+      )}
 
       {/* Lightbox Modal */}
       {lightboxOpen && Lightbox && (
