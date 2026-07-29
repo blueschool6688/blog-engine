@@ -1,4 +1,5 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteLoaderData } from "react-router";
+import type { MetaFunction } from "react-router";
 import React from "react";
 import "./index.css";
 function parseCookies(cookieHeader: string): Record<string, string> {
@@ -21,6 +22,13 @@ export async function loader({ request }: { request: Request }) {
   const language = cookies.language === "en" ? "en" : "vi";
   return { theme, language };
 }
+
+export const meta: MetaFunction = () => {
+  return [
+    { title: "BookData Store" },
+    { name: "description", content: "Nền tảng chia sẻ kiến thức" },
+  ];
+};
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const data = useRouteLoaderData("root") as { theme: string; language: string } | null;

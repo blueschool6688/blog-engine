@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useParams, useNavigate, useLoaderData, useNavigation, Navigate } from 'react-router';
+import type { MetaFunction } from 'react-router';
 import { publicService, getFullUrl } from '../services/api';
 import type { Post, Category } from '../services/api';
 import { CommentSection } from '../components/CommentSection';
@@ -40,6 +41,19 @@ export async function loader({ params }: { params: any }) {
     return { post: null, relatedPosts: [] };
   }
 }
+
+export const meta: MetaFunction = ({ data }: any) => {
+  if (!data?.post) return [{ title: 'BookData Store' }];
+  
+  // Try to use the English title if available, or just the default title (since we don't have language context here directly)
+  const title = data.post.title || data.post.title_en || 'Bài viết';
+  const desc = data.post.excerpt || data.post.excerpt_en || '';
+  
+  return [
+    { title: `${title} | BookData Store` },
+    { name: "description", content: desc },
+  ];
+};
 
 interface TocItem {
   id: string;
@@ -553,8 +567,8 @@ export const BlogPostDetail: React.FC = () => {
             </span>
           </nav>
 
-          <div className={`flex flex-col gap-8 lg:gap-12 items-start ${post.is_document ? 'lg:flex-col' : 'lg:flex-row'}`}>
-            <article className={`flex-1 min-w-0 ${post.is_document ? 'w-full' : ''}`}>
+          <div className={`flex flex-col gap-8 lg:gap-12 items-start w-full max-w-full ${post.is_document ? 'lg:flex-col' : 'lg:flex-row'}`}>
+            <article className={`flex-1 min-w-0 w-full max-w-full ${post.is_document ? 'w-full' : ''}`}>
               {primaryCategory && (
                 <div className="mb-4">
                   <Link
@@ -684,7 +698,7 @@ export const BlogPostDetail: React.FC = () => {
 
               {/* Nội dung bài viết */}
               <div
-                className="post-content post-content-wrapper"
+                className="post-content post-content-wrapper w-full max-w-full overflow-x-hidden"
                 dangerouslySetInnerHTML={{ __html: processedHtml }}
               />
 
