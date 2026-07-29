@@ -43,6 +43,19 @@ var publicSettingsWhitelist = map[string]bool{
 	"hero_title_line2":      true,
 	"hero_subtitle":         true,
 	"slider_images":         true,
+	"snowfall_enabled":      true,
+	"snowfall_count":        true,
+	"snowfall_shape":        true,
+	"snowfall_fps":          true,
+	"snowfall_gravity":      true,
+	"snowfall_size_min":     true,
+	"snowfall_size_max":     true,
+	"snowfall_speed_min":    true,
+	"snowfall_speed_max":    true,
+	"snowfall_wind_min":     true,
+	"snowfall_wind_max":     true,
+	"snowfall_color":        true,
+	"snowfall_images":       true,
 }
 
 // GetPublicSettings handles GET /api/public/settings

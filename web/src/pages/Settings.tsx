@@ -69,6 +69,21 @@ export const Settings: React.FC = () => {
   const [heroTitleLine2, setHeroTitleLine2] = useState(settings?.hero_title_line2 || '');
   const [heroSubtitle, setHeroSubtitle] = useState(settings?.hero_subtitle || '');
 
+  // Snowfall Settings
+  const [snowfallEnabled, setSnowfallEnabled] = useState(settings?.snowfall_enabled === 'true');
+  const [snowfallCount, setSnowfallCount] = useState(settings?.snowfall_count || '150');
+  const [snowfallShape, setSnowfallShape] = useState(settings?.snowfall_shape || 'circle');
+  const [snowfallFps, setSnowfallFps] = useState(settings?.snowfall_fps || '60');
+  const [snowfallGravity, setSnowfallGravity] = useState(settings?.snowfall_gravity || '1');
+  const [snowfallSizeMin, setSnowfallSizeMin] = useState(settings?.snowfall_size_min || '5');
+  const [snowfallSizeMax, setSnowfallSizeMax] = useState(settings?.snowfall_size_max || '15');
+  const [snowfallSpeedMin, setSnowfallSpeedMin] = useState(settings?.snowfall_speed_min || '1');
+  const [snowfallSpeedMax, setSnowfallSpeedMax] = useState(settings?.snowfall_speed_max || '3');
+  const [snowfallWindMin, setSnowfallWindMin] = useState(settings?.snowfall_wind_min || '-1');
+  const [snowfallWindMax, setSnowfallWindMax] = useState(settings?.snowfall_wind_max || '1');
+  const [snowfallColor, setSnowfallColor] = useState(settings?.snowfall_color || '');
+  const [snowfallImages, setSnowfallImages] = useState(settings?.snowfall_images || '');
+
   // Storage Settings State
   const [storageProvider, setStorageProvider] = useState(settings?.storage_provider || 'local');
   const [s3Endpoint, setS3Endpoint] = useState(settings?.s3_endpoint || '');
@@ -197,6 +212,19 @@ export const Settings: React.FC = () => {
         hero_title_line1: heroTitleLine1,
         hero_title_line2: heroTitleLine2,
         hero_subtitle: heroSubtitle,
+        snowfall_enabled: String(snowfallEnabled),
+        snowfall_count: snowfallCount,
+        snowfall_shape: snowfallShape,
+        snowfall_fps: snowfallFps,
+        snowfall_gravity: snowfallGravity,
+        snowfall_size_min: snowfallSizeMin,
+        snowfall_size_max: snowfallSizeMax,
+        snowfall_speed_min: snowfallSpeedMin,
+        snowfall_speed_max: snowfallSpeedMax,
+        snowfall_wind_min: snowfallWindMin,
+        snowfall_wind_max: snowfallWindMax,
+        snowfall_color: snowfallColor,
+        snowfall_images: snowfallImages,
         storage_provider: storageProvider,
         s3_endpoint: s3Endpoint,
         s3_region: s3Region,
@@ -532,6 +560,112 @@ export const Settings: React.FC = () => {
                           </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Snowfall Effect Configuration */}
+                <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800/50">
+                  <h4 className="text-sm font-semibold text-slate-850 dark:text-gray-200">Hiệu ứng Tuyết rơi (Snowfall)</h4>
+                  
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-850 dark:text-white">Bật hiệu ứng tuyết rơi</p>
+                      <p className="text-xs text-gray-500">Hiển thị tuyết rơi trên toàn bộ trang web dành cho người xem.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={snowfallEnabled}
+                        onChange={(e) => setSnowfallEnabled(e.target.checked)}
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-accentBlue"></div>
+                    </label>
+                  </div>
+
+                  {snowfallEnabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Cột 1 */}
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider flex justify-between">
+                            <span>Số lượng (Count)</span>
+                            <span className="text-accentBlue">{snowfallCount}</span>
+                          </label>
+                          <input type="range" min="10" max="500" step="10" value={snowfallCount} onChange={(e) => setSnowfallCount(e.target.value)} className="w-full accent-accentBlue" />
+                        </div>
+                        
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Hình dạng (Shape)</label>
+                          <select value={snowfallShape} onChange={(e) => setSnowfallShape(e.target.value)} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl text-sm">
+                            <option value="circle">Circle (Tròn)</option>
+                            <option value="star">Star (Ngôi sao)</option>
+                            <option value="dot">Dot (Chấm nhỏ)</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider flex justify-between">
+                            <span>Kích thước (Size: Min - Max)</span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input type="number" min="1" max="50" value={snowfallSizeMin} onChange={(e) => setSnowfallSizeMin(e.target.value)} className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center" />
+                            <span className="text-gray-400">-</span>
+                            <input type="number" min="1" max="100" value={snowfallSizeMax} onChange={(e) => setSnowfallSizeMax(e.target.value)} className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center" />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider flex justify-between">
+                            <span>Tốc độ (Speed: Min - Max)</span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input type="number" step="0.1" value={snowfallSpeedMin} onChange={(e) => setSnowfallSpeedMin(e.target.value)} className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center" />
+                            <span className="text-gray-400">-</span>
+                            <input type="number" step="0.1" value={snowfallSpeedMax} onChange={(e) => setSnowfallSpeedMax(e.target.value)} className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Cột 2 */}
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider flex justify-between">
+                            <span>Độ mượt (FPS)</span>
+                            <span className="text-accentBlue">{snowfallFps}</span>
+                          </label>
+                          <input type="range" min="15" max="120" step="5" value={snowfallFps} onChange={(e) => setSnowfallFps(e.target.value)} className="w-full accent-accentBlue" />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Màu sắc (Colors)</label>
+                          <input type="text" value={snowfallColor} onChange={(e) => setSnowfallColor(e.target.value)} placeholder="e.g. #ffffff (Phân cách dấu phẩy nếu nhiều màu)" className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl text-sm" />
+                          <p className="text-[10px] text-gray-500">Mã HEX. Để trống để tự động lấy màu theo giao diện (Sáng/Tối).</p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider flex justify-between">
+                            <span>Gió (Wind: Min - Max)</span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input type="number" step="0.1" value={snowfallWindMin} onChange={(e) => setSnowfallWindMin(e.target.value)} className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center" />
+                            <span className="text-gray-400">-</span>
+                            <input type="number" step="0.1" value={snowfallWindMax} onChange={(e) => setSnowfallWindMax(e.target.value)} className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center" />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Trọng lực (Gravity)</label>
+                          <input type="number" step="0.1" value={snowfallGravity} onChange={(e) => setSnowfallGravity(e.target.value)} placeholder="e.g. 1" className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl text-sm" />
+                        </div>
+                        
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Hình ảnh thay thế (Custom Images)</label>
+                          <input type="text" value={snowfallImages} onChange={(e) => setSnowfallImages(e.target.value)} placeholder="https://..., https://..." className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl text-sm" />
+                          <p className="text-[10px] text-gray-500">Phân cách nhiều URL ảnh bằng dấu phẩy. Để trống nếu muốn dùng hình mặc định (Shape).</p>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -1,9 +1,21 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { GripVertical, Trash2, Plus, X, Image as ImageIcon, Film, Save, Check, Loader, Search, Play } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  GripVertical as GripIcon,
+  Trash2 as TrashIcon,
+  Plus as PlusIcon,
+  X as XIcon,
+  Image as ImageIcon,
+  Film as FilmIcon,
+  Save as SaveIcon,
+  Check as CheckIcon,
+  Loader as LoaderIcon,
+  Search as SearchIcon,
+  Play as PlayIcon
+} from 'lucide-react';
 import { postService, mediaService, getFullUrl } from '../services/api';
 import type { PostMedia, Media } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { ConfirmModal } from './ConfirmModal';
+import { Modal, Input, Button, Segmented, Upload, Pagination, Spin } from 'antd';
 
 interface GalleryUploaderProps {
   postId: number;
@@ -36,7 +48,6 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
   const [uploadingInPicker, setUploadingInPicker] = useState(false);
   const pickerLimit = 12;
   const pickerTotalPages = Math.ceil(pickerTotal / pickerLimit);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchGallery = async () => {
     setLoading(true);
@@ -213,32 +224,46 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
     }
   };
 
-  const handlePickerUploadClick = () => {
-    fileInputRef.current?.click();
+  const beforeUpload = (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type === 'video/mp4' || file.type === 'video/webm';
+
+    if (!isImage && !isVideo) {
+      showError(`Unsupported format: ${file.name}. Only images and videos are allowed.`);
+      return Upload.LIST_IGNORE;
+    }
+
+    if (isImage && file.size > 10 * 1024 * 1024) {
+      showError(`Image file exceeds 10MB limit: ${file.name}`);
+      return Upload.LIST_IGNORE;
+    }
+
+    if (isVideo && file.size > 500 * 1024 * 1024) {
+      showError(`Video file exceeds 500MB limit: ${file.name}`);
+      return Upload.LIST_IGNORE;
+    }
+
+    return true;
   };
 
-  const handlePickerFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
+  const handlePickerUpload = async (options: any) => {
+    const { file, onSuccess, onError } = options;
     setUploadingInPicker(true);
     try {
-      for (let i = 0; i < files.length; i++) {
-        const response = await mediaService.upload(files[i]);
-        if (response.data) {
-          // Immediately attach uploaded media to this gallery
-          await postService.attachMedia(postId, { media_id: response.data.id });
-        }
+      const response = await mediaService.upload(file as File);
+      if (response.data) {
+        await postService.attachMedia(postId, { media_id: response.data.id });
+        showSuccess(`Uploaded and attached ${file.name}`);
       }
+      onSuccess(null, file);
       await fetchGallery();
       setPickerOpen(false);
-      showSuccess('Files uploaded and attached to gallery.');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Upload & attach in picker failed', err);
-      showError('Failed to upload file.');
+      onError(err);
+      showError(`Failed to upload ${file.name}`);
     } finally {
       setUploadingInPicker(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -256,13 +281,21 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
-      <ConfirmModal
-        isOpen={deleteMediaId !== null}
+      {/* Delete Confirmation Modal using Antd */}
+      <Modal
+        open={deleteMediaId !== null}
         title="Remove Media from Gallery"
-        message="Are you sure you want to remove this media from the gallery? The post will not show it anymore, but the file remains in the Media Library."
-        onConfirm={confirmDetach}
+        onOk={confirmDetach}
         onCancel={() => setDeleteMediaId(null)}
-      />
+        okText="Remove"
+        okButtonProps={{ danger: true, type: 'primary' }}
+        cancelText="Cancel"
+      >
+        <p className="py-2 text-sm text-slate-650 dark:text-gray-300">
+          Are you sure you want to remove this media from the gallery? The post will not show it anymore, but the file remains in the Media Library.
+        </p>
+      </Modal>
+
       <div>
         <h3 className="text-base font-bold text-gray-100">Post Gallery</h3>
         <p className="text-xs text-gray-400 mt-1">
@@ -271,14 +304,14 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
       </div>
 
       {error && (
-        <div className="bg-dangerRed/10 border border-dangerRed/30 text-dangerRed p-4 rounded-xl text-sm flex items-center gap-2">
+        <div className="bg-dangerRed/10 border border-dangerRed/30 text-dangerRed p-4 rounded-xl text-sm">
           <span>{error}</span>
         </div>
       )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader className="w-8 h-8 text-accentBlue animate-spin" />
+          <Spin />
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -308,7 +341,7 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
                   }`}
               >
                 <div className="absolute top-2 left-2 cursor-grab active:cursor-grabbing p-1 bg-white dark:bg-slate-900/90 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-white rounded-lg border border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100 z-10">
-                  <GripVertical className="w-3.5 h-3.5" />
+                  <GripIcon className="w-3.5 h-3.5" />
                 </div>
 
                 {/* Remove button */}
@@ -318,7 +351,7 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
                   className="absolute top-2 right-2 p-1 bg-dangerRed/80 hover:bg-dangerRed text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-md"
                   title="Remove from gallery"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <TrashIcon className="w-3.5 h-3.5" />
                 </button>
 
                 {/* Media Image/Poster Container */}
@@ -333,7 +366,7 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
                   />
                   {media.type === 'video' && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <Film className="w-8 h-8 text-accentBlue" />
+                      <FilmIcon className="w-8 h-8 text-accentBlue" />
                     </div>
                   )}
                   <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-gray-300 border border-slate-200 dark:border-slate-700">
@@ -353,22 +386,20 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
                     <div className="space-y-2">
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 dark:text-gray-400 block mb-1">Caption</label>
-                        <input
-                          type="text"
+                        <Input
                           value={localEdits.caption}
                           onChange={(e) => handleFieldChange(item.id, 'caption', e.target.value)}
                           placeholder="Short description..."
-                          className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue rounded px-2.5 py-1.5 text-slate-850 dark:text-gray-200 placeholder-slate-400 dark:placeholder-gray-600 focus:outline-none"
+                          className="text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-850 dark:text-gray-200 rounded-lg h-8"
                         />
                       </div>
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 dark:text-gray-400 block mb-1">Alt Text</label>
-                        <input
-                          type="text"
+                        <Input
                           value={localEdits.alt_text}
                           onChange={(e) => handleFieldChange(item.id, 'alt_text', e.target.value)}
                           placeholder="Screen reader alt..."
-                          className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue rounded px-2.5 py-1.5 text-slate-850 dark:text-gray-200 placeholder-slate-400 dark:placeholder-gray-600 focus:outline-none"
+                          className="text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-850 dark:text-gray-200 rounded-lg h-8"
                         />
                       </div>
                     </div>
@@ -376,19 +407,17 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
 
                   <div className="pt-2 flex justify-end">
                     {hasChanges && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.preventDefault(); handleSaveDetails(item); }}
+                      <Button
+                        type="primary"
+                        size="small"
+                        onClick={() => handleSaveDetails(item)}
                         disabled={isSaving}
-                        className="flex items-center gap-1 bg-successGreen hover:bg-successGreen/90 disabled:opacity-50 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded transition-all"
+                        loading={isSaving}
+                        icon={!isSaving && <SaveIcon className="w-3 h-3 inline" />}
+                        className="bg-successGreen hover:bg-successGreen/90 border-0 text-[10px] font-bold uppercase tracking-wider h-7 rounded"
                       >
-                        {isSaving ? (
-                          <Loader className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Save className="w-3 h-3" />
-                        )}
-                        <span>Save Details</span>
-                      </button>
+                        Save Details
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -400,242 +429,188 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-accentBlue/50 hover:bg-accentBlue/5 rounded-xl aspect-video flex flex-col items-center justify-center text-slate-500 dark:text-gray-400 hover:text-accentBlue transition-all cursor-pointer min-h-[220px]"
+            className="border-2 border-dashed border-slate-200 dark:border-slate-880 hover:border-accentBlue/50 hover:bg-accentBlue/5 rounded-xl aspect-video flex flex-col items-center justify-center text-slate-500 dark:text-gray-400 hover:text-accentBlue transition-all cursor-pointer min-h-[220px]"
           >
             <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-full mb-2">
-              <Plus className="w-6 h-6" />
+              <PlusIcon className="w-6 h-6" />
             </div>
             <span className="text-xs font-semibold">Add Media File</span>
           </button>
         </div>
       )}
 
-      {/* Media Picker Modal */}
-      {pickerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-            {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80">
-              <div>
-                <h3 className="font-bold text-slate-850 dark:text-gray-200">Select Media files</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Choose files from media library or upload new files.</p>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setPickerOpen(false);
-                  setSelectedMediaIds([]);
+      {/* Media Picker Modal using Antd */}
+      <Modal
+        open={pickerOpen}
+        title={
+          <div>
+            <h3 className="font-bold text-slate-850 dark:text-gray-250">Select Media files</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Choose files from media library or upload new files.</p>
+          </div>
+        }
+        onCancel={() => {
+          setPickerOpen(false);
+          setSelectedMediaIds([]);
+        }}
+        width={900}
+        centered
+        footer={[
+          <span className="text-xs text-slate-500 mr-4" key="count">
+            {selectedMediaIds.length} item(s) selected
+          </span>,
+          <Button
+            key="cancel"
+            onClick={() => {
+              setPickerOpen(false);
+              setSelectedMediaIds([]);
+            }}
+            className="rounded-xl"
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            onClick={handleAttachSelected}
+            disabled={selectedMediaIds.length === 0}
+            className="bg-gradient-to-r from-accentBlue to-accentPurple border-0 text-white rounded-xl shadow-md shadow-accentBlue/10"
+          >
+            Add to Gallery
+          </Button>
+        ]}
+      >
+        <div className="flex flex-col space-y-4">
+          {/* Toolbar */}
+          <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-100/30 dark:bg-slate-950/20 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Search */}
+              <Input
+                placeholder="Search by name..."
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                prefix={<SearchIcon className="w-4 h-4 text-slate-400" />}
+                className="rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-850 dark:text-gray-200 h-9 w-48"
+                allowClear
+              />
+
+              {/* Filter Type using Antd Segmented */}
+              <Segmented
+                value={pickerType}
+                onChange={(value) => {
+                  setPickerType(value as any);
+                  setPickerPage(1);
                 }}
-                className="text-slate-500 hover:text-slate-800 dark:text-gray-400 dark:hover:text-white transition-colors"
+                options={[
+                  { label: 'All', value: 'all' },
+                  { label: 'Images', value: 'image' },
+                  { label: 'Videos', value: 'video' },
+                ]}
+                className="bg-slate-100 dark:bg-slate-900 p-0.5 border border-slate-200 dark:border-slate-800 rounded-xl"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Upload
+                customRequest={handlePickerUpload}
+                beforeUpload={beforeUpload}
+                multiple
+                showUploadList={false}
+                accept="image/*,video/mp4,video/webm"
               >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Toolbar */}
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-100/30 dark:bg-slate-950/20 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                {/* Search */}
-                <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search by name..."
-                    value={pickerSearch}
-                    onChange={(e) => setPickerSearch(e.target.value)}
-                    className="pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-850 dark:text-gray-200 placeholder-slate-400 dark:placeholder-gray-650 focus:outline-none focus:border-accentBlue w-48"
-                  />
-                </div>
-
-                {/* Filter Type */}
-                <div className="flex bg-slate-100 dark:bg-slate-900 rounded-xl p-0.5 border border-slate-200 dark:border-slate-800 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPickerType('all');
-                      setPickerPage(1);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg ${pickerType === 'all' ? 'bg-white dark:bg-slate-800 text-accentBlue dark:text-white font-medium shadow-sm' : 'text-slate-500 dark:text-gray-400 hover:text-slate-850'
-                      }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPickerType('image');
-                      setPickerPage(1);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg flex items-center gap-1 ${pickerType === 'image' ? 'bg-white dark:bg-slate-800 text-accentBlue dark:text-white font-medium shadow-sm' : 'text-slate-500 dark:text-gray-400 hover:text-slate-850'
-                      }`}
-                  >
-                    <ImageIcon className="w-3 h-3" />
-                    Images
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPickerType('video');
-                      setPickerPage(1);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg flex items-center gap-1 ${pickerType === 'video' ? 'bg-white dark:bg-slate-800 text-accentBlue dark:text-white font-medium shadow-sm' : 'text-slate-500 dark:text-gray-400 hover:text-slate-850'
-                      }`}
-                  >
-                    <Film className="w-3 h-3" />
-                    Videos
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handlePickerUploadClick}
-                  disabled={uploadingInPicker}
-                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-gray-300 text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5 disabled:opacity-50"
+                <Button
+                  loading={uploadingInPicker}
+                  icon={uploadingInPicker ? <LoaderIcon className="w-3.5 h-3.5 animate-spin" /> : <PlusIcon className="w-3.5 h-3.5" />}
+                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-gray-300 rounded-xl h-9"
                 >
-                  {uploadingInPicker ? (
-                    <Loader className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Plus className="w-3.5 h-3.5" />
-                  )}
-                  <span>Upload new</span>
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handlePickerFileChange}
-                  accept="image/*,video/mp4,video/webm"
-                  multiple
-                  className="hidden"
-                />
-              </div>
-            </div>
-
-            {/* Grid display */}
-            <div className="p-4 flex-1 overflow-y-auto min-h-[300px]">
-              {pickerLoading ? (
-                <div className="flex items-center justify-center py-24">
-                  <Loader className="w-8 h-8 text-accentBlue animate-spin" />
-                </div>
-              ) : filteredMediaList.length === 0 ? (
-                <div className="text-center py-24 text-gray-500">No media assets found in library.</div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
-                  {filteredMediaList.map((media) => {
-                    const isSelected = selectedMediaIds.includes(media.id);
-                    const isProcessing = media.status === 'processing';
-
-                    return (
-                      <div
-                        key={media.id}
-                        onClick={() => !isProcessing && togglePickerSelection(media.id)}
-                        className={`group border rounded-xl overflow-hidden aspect-square relative bg-slate-950 flex flex-col cursor-pointer transition-all ${isSelected
-                            ? 'border-accentBlue ring-2 ring-accentBlue/30 scale-95'
-                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700'
-                          }`}
-                      >
-                        {isProcessing ? (
-                          <div className="flex-1 flex flex-col items-center justify-center p-2 text-center">
-                            <Loader className="w-6 h-6 text-accentBlue animate-spin mb-1" />
-                            <span className="text-[8px] text-gray-500 uppercase tracking-widest font-semibold">
-                              Wait...
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex-1 relative overflow-hidden flex items-center justify-center">
-                            <img
-                              src={getFullUrl(media.thumbnail_url || media.url)}
-                              alt={media.file_name}
-                              className="object-cover w-full h-full"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://placehold.co/150/0f172a/94a3b8?text=File';
-                              }}
-                            />
-                            {media.type === 'video' && (
-                              <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                                <Play className="w-5 h-5 fill-current text-white" />
-                              </div>
-                            )}
-
-                            {/* Checkmark overlay */}
-                            {isSelected && (
-                              <div className="absolute top-1.5 right-1.5 bg-accentBlue text-white rounded-full p-1 shadow-md">
-                                <Check className="w-3 h-3" />
-                              </div>
-                            )}
-
-                            {/* Type badge */}
-                            <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded text-[7px] font-bold uppercase bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-gray-300 border border-slate-250 dark:border-slate-700">
-                              {media.type}
-                            </span>
-                          </div>
-                        )}
-                        <div className="p-1.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-550 dark:text-gray-400 truncate text-center font-medium">
-                          {media.file_name}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Picker Pagination */}
-              {pickerTotalPages > 1 && (
-                <div className="flex justify-center gap-4 mt-6 pt-4 border-t border-slate-200 dark:border-slate-800/60">
-                  <button
-                    type="button"
-                    onClick={() => setPickerPage((p) => Math.max(p - 1, 1))}
-                    disabled={pickerPage === 1}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-gray-300 text-xs font-semibold rounded-lg dark:hover:bg-slate-750 disabled:opacity-50 transition-colors"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-xs text-slate-500 dark:text-gray-400 self-center">
-                    Page {pickerPage} of {pickerTotalPages}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPickerPage((p) => Math.min(p + 1, pickerTotalPages))}
-                    disabled={pickerPage === pickerTotalPages}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-gray-300 text-xs font-semibold rounded-lg dark:hover:bg-slate-750 disabled:opacity-50 transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-100/40 dark:bg-slate-900/40 flex items-center justify-between">
-              <span className="text-xs text-slate-500">
-                {selectedMediaIds.length} item(s) selected
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPickerOpen(false);
-                    setSelectedMediaIds([]);
-                  }}
-                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-650 hover:text-slate-850 dark:text-gray-300 dark:hover:bg-slate-800 text-xs font-semibold rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); handleAttachSelected(); }}
-                  disabled={selectedMediaIds.length === 0}
-                  className="px-4 py-2 bg-gradient-to-r from-accentBlue to-accentPurple text-white text-xs font-semibold rounded-xl hover:brightness-110 disabled:opacity-50 transition-all shadow-md shadow-accentBlue/10"
-                >
-                  Add to Gallery
-                </button>
-              </div>
+                  Upload new
+                </Button>
+              </Upload>
             </div>
           </div>
+
+          {/* Grid display */}
+          <div className="overflow-y-auto max-h-[50vh] min-h-[300px] py-2">
+            {pickerLoading ? (
+              <div className="flex items-center justify-center py-24">
+                <Spin size="large" />
+              </div>
+            ) : filteredMediaList.length === 0 ? (
+              <div className="text-center py-24 text-gray-500">No media assets found in library.</div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+                {filteredMediaList.map((media) => {
+                  const isSelected = selectedMediaIds.includes(media.id);
+                  const isProcessing = media.status === 'processing';
+
+                  return (
+                    <div
+                      key={media.id}
+                      onClick={() => !isProcessing && togglePickerSelection(media.id)}
+                      className={`group border rounded-xl overflow-hidden aspect-square relative bg-slate-950 flex flex-col cursor-pointer transition-all ${isSelected
+                        ? 'border-accentBlue ring-2 ring-accentBlue/30 scale-95'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700'
+                        }`}
+                    >
+                      {isProcessing ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-2 text-center">
+                          <Spin size="small" className="mb-1" />
+                          <span className="text-[8px] text-gray-500 uppercase tracking-widest font-semibold">
+                            Wait...
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+                          <img
+                            src={getFullUrl(media.thumbnail_url || media.url)}
+                            alt={media.file_name}
+                            className="object-cover w-full h-full"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://placehold.co/150/0f172a/94a3b8?text=File';
+                            }}
+                          />
+                          {media.type === 'video' && (
+                            <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                              <PlayIcon className="w-5 h-5 fill-current text-white" />
+                            </div>
+                          )}
+
+                          {/* Checkmark overlay */}
+                          {isSelected && (
+                            <div className="absolute top-1.5 right-1.5 bg-accentBlue text-white rounded-full p-1 shadow-md z-10">
+                              <CheckIcon className="w-3 h-3" />
+                            </div>
+                          )}
+
+                          {/* Type badge */}
+                          <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded text-[7px] font-bold uppercase bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-gray-300 border border-slate-250 dark:border-slate-700">
+                            {media.type}
+                          </span>
+                        </div>
+                      )}
+                      <div className="p-1.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-550 dark:text-gray-400 truncate text-center font-medium">
+                        {media.file_name}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Picker Pagination */}
+          {pickerTotalPages > 1 && (
+            <div className="flex justify-center mt-2 pt-2">
+              <Pagination
+                current={pickerPage}
+                pageSize={pickerLimit}
+                total={pickerTotal}
+                showSizeChanger={false}
+                onChange={(p) => setPickerPage(p)}
+              />
+            </div>
+          )}
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

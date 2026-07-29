@@ -1,13 +1,16 @@
-.PHONY: dev build up down logs migrate prod prod-down prod-logs
+.PHONY: dev build up down logs migrate prod prod-down prod-logs create-network
+
+create-network:
+	docker network create blogs_backend_net || true
 
 # ── Development ──────────────────────────────────────────────
-dev:
+dev: create-network
 	docker compose up --build
 
 build:
 	docker compose build
 
-up:
+up: create-network
 	docker compose up -d
 
 down:
@@ -16,11 +19,11 @@ down:
 logs:
 	docker compose logs -f
 
-migrate:
+migrate: create-network
 	docker compose run --rm migrate
 
 # ── Production ───────────────────────────────────────────────
-prod:
+prod: create-network
 	docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 		--env-file .env.docker up -d --build
 

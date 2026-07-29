@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { LayoutDashboard, LogIn, Sun, Moon, ArrowUp, Menu, X, MapPin, CloudSun, CloudRain } from 'lucide-react';
 import { settingsService, getFullUrl } from '../services/api';
+import { Snowfall } from '@namnguyenthanhwork/react-snowfall-effect';
 
 interface WeatherData {
   city: string;
@@ -100,6 +101,31 @@ export const PublicLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-5 flex flex-col transition-colors duration-300 selection:bg-accentBlue/25 selection:text-accentBlue" style={{ backgroundColor: theme === 'dark' ? 'var(--custom-dark-bg)' : 'var(--custom-light-bg)' }}>
+      {settings?.snowfall_enabled && (
+        <Snowfall
+          snowflakeCount={parseInt(settings?.snowfall_count || '150', 10)}
+          // snowflakeShape={(settings?.snowfall_shape as any) || 'circle'}
+          fps={parseInt(settings?.snowfall_fps || '60', 10)}
+          gravity={parseFloat(settings?.snowfall_gravity || '1')}
+          size={{
+            min: parseFloat(settings?.snowfall_size_min || '5'),
+            max: parseFloat(settings?.snowfall_size_max || '15')
+          }}
+          speed={{
+            min: parseFloat(settings?.snowfall_speed_min || '1'),
+            max: parseFloat(settings?.snowfall_speed_max || '3')
+          }}
+          wind={{
+            min: parseFloat(settings?.snowfall_wind_min || '-1'),
+            max: parseFloat(settings?.snowfall_wind_max || '1')
+          }}
+          colors={settings?.snowfall_color ? settings.snowfall_color.split(',').map(c => c.trim()) : [theme === 'dark' ? '#ffffff' : '#a0aec0']}
+          images={[
+            'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj4KICA8cGF0aCBkPSJNMTIgMlY1IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik05IDVDOSAzLjUgMTAuMyAyIDEyIDJDMTMuNyAyIDE1IDMuNSAxNSA1IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik05IDVIMTUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIvPgogIDxwYXRoIGQ9Ik04IDdDOCA1LjggMTYgNS44IDE2IDdDMTcuNSA5IDE3LjUgMTUgMTYgMTdDMTYgMTguNSA4IDE4LjUgOCAxN0M2LjUgMTUgNi41IDkgOCA3WiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+CiAgPHBhdGggZD0iTTEyIDdWMTciIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMS41Ii8+CiAgPHBhdGggZD0iTTEwIDdDMTAuOCAxMCAxMC44IDE0IDEwIDE3IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjEuNSIvPgogIDxwYXRoIGQ9Ik0xNCA3QzEzLjIgMTAgMTMuMiAxNCAxNCAxNyIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4KICA8cGF0aCBkPSJNOSAxN0gxNSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIi8+CiAgPHBhdGggZD0iTTEyIDE3VjIxIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik0xMC41IDIxTDEyIDIyTDEzLjUgMjEiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPg==',
+          ]}
+          zIndex={9999}
+        />
+      )}
       <header className="sticky top-0 z-50 w-full backdrop-blur-xl bg-white/85 dark:bg-[#090D16]/90 border-b border-slate-200/80 dark:border-slate-800/60 shadow-sm transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[60px] flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2.5 group shrink-0" onClick={() => setMobileMenuOpen(false)}>

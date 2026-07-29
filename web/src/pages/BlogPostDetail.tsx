@@ -181,13 +181,12 @@ export const BlogPostDetail: React.FC = () => {
   const [Lightbox, setLightbox] = useState<any>(null);
   const [ZoomPlugin, setZoomPlugin] = useState<any>(null);
   const [VideoPlugin, setVideoPlugin] = useState<any>(null);
-  const [PDFViewer, setPDFViewer] = useState<React.ComponentType<{ url: string; fileName?: string }> | null>(null);
+  const [PdfFlipBook, setPdfFlipBook] = useState<React.ComponentType<{ fileUrl: string }> | null>(null);
 
   useEffect(() => {
-    import('../components/PDFViewer').then((mod) => {
-      setPDFViewer(() => mod.PDFViewer);
+    import('../components/PdfFlipBook').then((mod) => {
+      setPdfFlipBook(() => mod.PdfFlipBook);
     });
-
     Promise.all([
       import('yet-another-react-lightbox'),
       import('yet-another-react-lightbox/plugins/zoom'),
@@ -487,8 +486,8 @@ export const BlogPostDetail: React.FC = () => {
           </span>
         </nav>
 
-        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start">
-          <article className="flex-1 min-w-0">
+        <div className={`flex flex-col gap-8 lg:gap-12 items-start ${post.is_document ? 'lg:flex-col' : 'lg:flex-row'}`}>
+          <article className={`flex-1 min-w-0 ${post.is_document ? 'w-full' : ''}`}>
             {primaryCategory && (
               <div className="mb-4">
                 <Link
@@ -553,10 +552,10 @@ export const BlogPostDetail: React.FC = () => {
                     <span className="text-sm font-bold">{post.pdf_media.file_name}</span>
                   </div>
                 </div>
-                {PDFViewer ? (
-                  <PDFViewer url={getFullUrl(post.pdf_media.url)} fileName={post.pdf_media.file_name} />
+                {PdfFlipBook ? (
+                  <PdfFlipBook fileUrl={getFullUrl(post.pdf_media.url)} />
                 ) : (
-                  <div className="text-xs text-gray-500 py-4 text-center">Loading viewer component...</div>
+                  <div className="text-xs text-gray-500 py-4 text-center">Đang tải trình đọc sách lật...</div>
                 )}
               </div>
             )}
@@ -760,62 +759,64 @@ export const BlogPostDetail: React.FC = () => {
             <CommentSection postId={post.id} />
           </article>
 
-          <aside className="hidden lg:block w-64 xl:w-72 shrink-0 sticky top-[76px] self-start">
-            <div className="space-y-5">
-              {toc.length > 0 && (
-                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm">
-                  <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-gray-500 mb-4 flex items-center gap-2">
-                    <List className="w-3.5 h-3.5" />
-                    {t('table_of_contents')}
+          {!post.is_document && (
+            <aside className="hidden lg:block w-64 xl:w-72 shrink-0 sticky top-[76px] self-start">
+              <div className="space-y-5">
+                {toc.length > 0 && (
+                  <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm">
+                    <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-gray-500 mb-4 flex items-center gap-2">
+                      <List className="w-3.5 h-3.5" />
+                      {t('table_of_contents')}
+                    </h3>
+                    <nav className="space-y-0.5" aria-label="Table of contents">
+                      {toc.map((item) => (
+                        <a
+                          key={item.id}
+                          href={`#${item.id}`}
+                          onClick={(e) => handleTocClick(e, item.id)}
+                          className={`flex items-center gap-1.5 text-[12.5px] leading-snug py-1.5 rounded-lg px-2.5 transition-all duration-200 group ${item.level === 3 ? 'pl-6 text-[11.5px]' : ''
+                            } ${activeId === item.id
+                              ? 'text-accentBlue font-semibold bg-accentBlue/8 dark:bg-accentBlue/12'
+                              : 'text-slate-500 dark:text-gray-500 hover:text-slate-800 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                            }`}
+                        >
+                          {activeId === item.id && (
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-accentBlue shrink-0" />
+                          )}
+                          <span className="line-clamp-2">{item.text}</span>
+                        </a>
+                      ))}
+                    </nav>
+                  </div>
+                )}
+
+                {/* Share */}
+                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-3">
+                  <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-gray-500">
+                    {language === 'vi' ? 'Chia sẻ bài viết' : 'Share Article'}
                   </h3>
-                  <nav className="space-y-0.5" aria-label="Table of contents">
-                    {toc.map((item) => (
-                      <a
-                        key={item.id}
-                        href={`#${item.id}`}
-                        onClick={(e) => handleTocClick(e, item.id)}
-                        className={`flex items-center gap-1.5 text-[12.5px] leading-snug py-1.5 rounded-lg px-2.5 transition-all duration-200 group ${item.level === 3 ? 'pl-6 text-[11.5px]' : ''
-                          } ${activeId === item.id
-                            ? 'text-accentBlue font-semibold bg-accentBlue/8 dark:bg-accentBlue/12'
-                            : 'text-slate-500 dark:text-gray-500 hover:text-slate-800 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                          }`}
-                      >
-                        {activeId === item.id && (
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-accentBlue shrink-0" />
-                        )}
-                        <span className="line-clamp-2">{item.text}</span>
-                      </a>
-                    ))}
-                  </nav>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => navigator.clipboard.writeText(window.location.href)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-800/80 transition-all"
+                    >
+                      <Copy className="w-3 h-3" />
+                      {language === 'vi' ? 'Sao chép link' : 'Copy Link'}
+                    </button>
+                  </div>
                 </div>
-              )}
 
-              {/* Share */}
-              <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-3">
-                <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-gray-500">
-                  {language === 'vi' ? 'Chia sẻ bài viết' : 'Share Article'}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => navigator.clipboard.writeText(window.location.href)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-800/80 transition-all"
-                  >
-                    <Copy className="w-3 h-3" />
-                    {language === 'vi' ? 'Sao chép link' : 'Copy Link'}
-                  </button>
-                </div>
+                {/* Back link */}
+                <Link
+                  to="/"
+                  className="flex items-center justify-center gap-2 px-4 py-3 w-full bg-slate-100 dark:bg-slate-900/40 hover:bg-slate-200 dark:hover:bg-slate-800/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl text-sm font-semibold text-slate-600 dark:text-gray-400 transition-all group"
+                >
+                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                  {language === 'vi' ? 'Xem tất cả bài viết' : 'View all articles'}
+                </Link>
               </div>
-
-              {/* Back link */}
-              <Link
-                to="/"
-                className="flex items-center justify-center gap-2 px-4 py-3 w-full bg-slate-100 dark:bg-slate-900/40 hover:bg-slate-200 dark:hover:bg-slate-800/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl text-sm font-semibold text-slate-600 dark:text-gray-400 transition-all group"
-              >
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                {language === 'vi' ? 'Xem tất cả bài viết' : 'View all articles'}
-              </Link>
-            </div>
-          </aside>
+            </aside>
+          )}
         </div>
       </div>
 

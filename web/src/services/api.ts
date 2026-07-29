@@ -1,6 +1,15 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+const getApiBaseUrl = () => {
+  if (typeof window === 'undefined') {
+    // Chạy SSR trong Docker (production) phải dùng hostname 'api' của Docker network
+    const isProd = process.env.NODE_ENV === 'production';
+    return isProd ? 'http://api:8080/api' : 'http://localhost:8080/api';
+  }
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -488,8 +497,7 @@ export const feedbackService = {
 export const getFullUrl = (path: string) => {
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-  const origin = baseUrl.replace(/\/api$/, '');
+  const origin = API_BASE_URL.replace(/\/api$/, '');
   return `${origin}${path}`;
 };
 

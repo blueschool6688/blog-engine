@@ -25,12 +25,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -trimpath \
     -o /out/worker ./cmd/worker/main.go
 
-# Database migration runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -trimpath \
     -o /out/migrate ./cmd/migrate/main.go
 
-# Seed data tool
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -trimpath \
     -o /out/seed ./cmd/seed/main.go

@@ -1,9 +1,22 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLoaderData, useSearchParams, useRevalidator, useNavigation } from 'react-router';
 import { mediaService, getFullUrl } from '../services/api';
 import type { Media } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { ConfirmModal } from '../components/ConfirmModal';
+import { Upload, Button, Input, Segmented, Modal, Pagination, Spin } from 'antd';
+import {
+  Image as ImageIcon,
+  Film as FilmIcon,
+  Upload as UploadIcon,
+  Trash2 as TrashIcon,
+  Eye as EyeIcon,
+  Loader as LoaderIcon,
+  X as XIcon,
+  Play as PlayIcon,
+  Search as SearchIcon,
+  RefreshCw as RefreshIcon,
+  FileText as FileTextIcon
+} from 'lucide-react';
 
 export async function clientLoader({ request }: { request: Request }) {
   const url = new URL(request.url);
@@ -28,23 +41,10 @@ export async function clientLoader({ request }: { request: Request }) {
   }
   return { media: [], total: 0 };
 }
-import {
-  Image as ImageIcon,
-  Film,
-  Upload,
-  Trash2,
-  Eye,
-  Loader,
-  X,
-  Play,
-  Search,
-  RefreshCw,
-  FileText
-} from 'lucide-react';
 
 export const MediaLibrary: React.FC = () => {
   const { media: mediaList, total } = useLoaderData() as any;
-  const { revalidate, state } = useRevalidator();
+  const { revalidate } = useRevalidator();
   const navigation = useNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
   const typeFilter = searchParams.get('type') || '';
@@ -52,15 +52,14 @@ export const MediaLibrary: React.FC = () => {
   const limit = 12;
   const loading = navigation.state === 'loading';
 
-  const [uploading, setUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   // Modals state
   const [previewMedia, setPreviewMedia] = useState<Media | null>(null);
   const [deleteMedia, setDeleteMedia] = useState<Media | null>(null);
 
   const { showSuccess, showError, showWarning } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [PDFViewer, setPDFViewer] = useState<React.ComponentType<{ url: string; fileName?: string }> | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxSlides, setLightboxSlides] = useState<any[]>([]);
@@ -87,73 +86,61 @@ export const MediaLibrary: React.FC = () => {
     });
   }, []);
 
-  // Initialization and plugins fetching remains
+  // Validation rules for uploads
+  const beforeUpload = (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type === 'video/mp4' || file.type === 'video/webm';
+    const isDoc = file.type === 'application/pdf' || 
+                  file.type === 'text/plain' ||
+                  file.type === 'application/msword' ||
+                  file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                  file.type === 'application/vnd.ms-excel' ||
+                  file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-  // Handle file uploads
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploading(true);
-    let successCount = 0;
-    let failCount = 0;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      // Size limits
-      const isImage = file.type.startsWith('image/');
-      const isVideo = file.type === 'video/mp4' || file.type === 'video/webm';
-      const isDoc = file.type === 'application/pdf' || 
-                    file.type === 'text/plain' ||
-                    file.type === 'application/msword' ||
-                    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                    file.type === 'application/vnd.ms-excel' ||
-                    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-      if (!isImage && !isVideo && !isDoc) {
-        showWarning(`Unsupported format: ${file.name}`);
-        continue;
-      }
-
-      if (isImage && file.size > 10 * 1024 * 1024) {
-        showWarning(`Image file exceeds 10MB limit: ${file.name}`);
-        continue;
-      }
-
-      if (isVideo && file.size > 500 * 1024 * 1024) {
-        showWarning(`Video file exceeds 500MB limit: ${file.name}`);
-        continue;
-      }
-
-      if (isDoc && file.size > 50 * 1024 * 1024) {
-        showWarning(`Document file exceeds 50MB limit: ${file.name}`);
-        continue;
-      }
-
-      try {
-        await mediaService.upload(file);
-        successCount++;
-      } catch (err: any) {
-        console.error('Failed to upload', file.name, err);
-        failCount++;
-      }
+    if (!isImage && !isVideo && !isDoc) {
+      showWarning(`Unsupported format: ${file.name}`);
+      return Upload.LIST_IGNORE;
     }
 
-    if (successCount > 0) {
-      showSuccess(`Successfully uploaded ${successCount} files`);
+    if (isImage && file.size > 10 * 1024 * 1024) {
+      showWarning(`Image file exceeds 10MB limit: ${file.name}`);
+      return Upload.LIST_IGNORE;
+    }
+
+    if (isVideo && file.size > 500 * 1024 * 1024) {
+      showWarning(`Video file exceeds 500MB limit: ${file.name}`);
+      return Upload.LIST_IGNORE;
+    }
+
+    if (isDoc && file.size > 50 * 1024 * 1024) {
+      showWarning(`Document file exceeds 50MB limit: ${file.name}`);
+      return Upload.LIST_IGNORE;
+    }
+
+    return true;
+  };
+
+  // Antd custom upload request handler
+  const handleUpload = async (options: any) => {
+    const { file, onSuccess, onError } = options;
+    setUploading(true);
+    try {
+      await mediaService.upload(file as File);
+      onSuccess(null, file);
+      showSuccess(`Successfully uploaded ${file.name}`);
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
         next.set('page', '1');
         return next;
       });
       revalidate();
+    } catch (err: any) {
+      console.error('Failed to upload', file.name, err);
+      onError(err);
+      showError(`Failed to upload ${file.name}`);
+    } finally {
+      setUploading(false);
     }
-    if (failCount > 0) {
-      showError(`Failed to upload ${failCount} files`);
-    }
-
-    setUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Handle single deletion
@@ -165,7 +152,6 @@ export const MediaLibrary: React.FC = () => {
       revalidate();
     } catch (err: any) {
       console.error('Failed to delete media', err);
-      // In case of GORM association blockage (409 Conflict)
       if (err.response?.status === 409) {
         showError('Conflict: Media is currently in use as a cover or in a post gallery and cannot be deleted.');
       } else {
@@ -176,40 +162,7 @@ export const MediaLibrary: React.FC = () => {
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (!files || files.length === 0) return;
-
-    setUploading(true);
-    let successCount = 0;
-    try {
-      for (let i = 0; i < files.length; i++) {
-        await mediaService.upload(files[i]);
-        successCount++;
-      }
-      if (successCount > 0) {
-        showSuccess(`Uploaded ${successCount} files via Drag & Drop`);
-        setSearchParams(prev => {
-          const next = new URLSearchParams(prev);
-          next.set('page', '1');
-          return next;
-        });
-        revalidate();
-      }
-    } catch (err) {
-      console.error(err);
-      showError('Failed to upload some files');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const filteredMediaList = mediaList.filter((media) =>
+  const filteredMediaList = mediaList.filter((media: Media) =>
     media.file_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -218,8 +171,8 @@ export const MediaLibrary: React.FC = () => {
       setPreviewMedia(media);
     } else {
       const mediaSlides = filteredMediaList
-        .filter((m) => m.type === 'image' || m.type === 'video')
-        .map((m) => {
+        .filter((m: Media) => m.type === 'image' || m.type === 'video')
+        .map((m: Media) => {
           if (m.type === 'video') {
             return {
               type: 'video' as const,
@@ -237,8 +190,8 @@ export const MediaLibrary: React.FC = () => {
         });
 
       const clickedIndex = filteredMediaList
-        .filter((m) => m.type === 'image' || m.type === 'video')
-        .findIndex((m) => m.id === media.id);
+        .filter((m: Media) => m.type === 'image' || m.type === 'video')
+        .findIndex((m: Media) => m.id === media.id);
 
       setLightboxSlides(mediaSlides);
       setLightboxIndex(clickedIndex >= 0 ? clickedIndex : 0);
@@ -248,27 +201,33 @@ export const MediaLibrary: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={deleteMedia !== null}
+      {/* Delete Confirmation Modal using Antd */}
+      <Modal
+        open={deleteMedia !== null}
         title="Delete Media File"
-        message={`Are you sure you want to delete "${deleteMedia?.file_name}"? This file will be permanently deleted from the disk and cannot be recovered.`}
-        onConfirm={confirmDelete}
+        onOk={confirmDelete}
         onCancel={() => setDeleteMedia(null)}
-      />
+        okText="Delete"
+        okButtonProps={{ danger: true, type: 'primary' }}
+        cancelText="Cancel"
+      >
+        <p className="py-2 text-sm text-slate-650 dark:text-gray-300">
+          Are you sure you want to delete &quot;{deleteMedia?.file_name}&quot;? This file will be permanently deleted from the disk and cannot be recovered.
+        </p>
+      </Modal>
 
-      {/* Media Preview Modal */}
-      {previewMedia && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm">
-          <div className="relative max-w-4xl w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 shadow-2xl flex flex-col space-y-4 animate-scale-up">
-            <button
-              onClick={() => setPreviewMedia(null)}
-              className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-white rounded-xl transition-all"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <h3 className="text-base font-bold text-slate-850 dark:text-white pr-12 truncate">{previewMedia.file_name}</h3>
-            
+      {/* Media Preview Modal using Antd */}
+      <Modal
+        open={previewMedia !== null}
+        title={previewMedia?.file_name}
+        onCancel={() => setPreviewMedia(null)}
+        footer={null}
+        width={900}
+        centered
+        className="dark:bg-slate-900"
+      >
+        {previewMedia && (
+          <div className="space-y-4 pt-2">
             <div className="w-full h-[60vh] bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800/30">
               {previewMedia.type === 'video' ? (
                 <video
@@ -313,8 +272,8 @@ export const MediaLibrary: React.FC = () => {
               </a>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -325,95 +284,88 @@ export const MediaLibrary: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Upload, search, and manage files used throughout posts.</p>
         </div>
 
-    <div>
-          <input
-            type="file"
+        <div>
+          <Upload
+            customRequest={handleUpload}
+            beforeUpload={beforeUpload}
             multiple
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            className="hidden"
+            showUploadList={false}
             accept="image/*,video/mp4,video/webm,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center space-x-2 bg-gradient-to-r from-accentBlue to-accentPurple hover:brightness-110 disabled:opacity-55 text-white font-medium px-5 py-3 rounded-xl transition-all shadow-md shadow-accentBlue/10 text-sm"
           >
-            {uploading ? <Loader className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            <span>Upload Files</span>
-          </button>
+            <Button
+              type="primary"
+              icon={uploading ? <LoaderIcon className="w-4 h-4 animate-spin inline" /> : <UploadIcon className="w-4 h-4 inline" />}
+              size="large"
+              loading={uploading}
+              className="bg-gradient-to-r from-accentBlue to-accentPurple border-0 hover:brightness-110 text-white font-medium rounded-xl h-11"
+            >
+              Upload Files
+            </Button>
+          </Upload>
         </div>
       </div>
 
-      {/* Drag & Drop Zone */}
-      <div
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        className="border-2 border-dashed border-slate-800 hover:border-accentBlue/40 bg-slate-900/10 hover:bg-slate-900/20 rounded-2xl p-6 transition-all text-center flex flex-col items-center justify-center group"
-      >
-        <Upload className="w-10 h-10 text-gray-700 group-hover:text-accentBlue/60 transition-colors mb-3" />
-        <p className="text-sm text-gray-400 font-sans">
-          Drag & Drop images, videos, or documents (PDF, Word, Excel, Text) here to upload them directly
-        </p>
-        <p className="text-xs text-gray-600 mt-1 font-sans">
-          Max sizes: Image 10MB, Video 500MB, Document 50MB
-        </p>
+      {/* Drag & Drop Zone using Antd Upload Dragger */}
+      <div className="bg-slate-900/10 dark:bg-slate-950/20 rounded-2xl overflow-hidden border border-dashed border-slate-800 hover:border-accentBlue/40 transition-colors">
+        <Upload.Dragger
+          customRequest={handleUpload}
+          beforeUpload={beforeUpload}
+          multiple
+          showUploadList={false}
+          accept="image/*,video/mp4,video/webm,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain"
+          style={{ background: 'transparent', border: 'none', padding: '24px' }}
+        >
+          <div className="flex flex-col items-center justify-center py-2">
+            <UploadIcon className="w-10 h-10 text-gray-700 hover:text-accentBlue/60 transition-colors mb-3" />
+            <p className="ant-upload-text text-sm text-gray-400 font-sans">
+              Drag & Drop images, videos, or documents (PDF, Word, Excel, Text) here to upload them directly
+            </p>
+            <p className="ant-upload-hint text-xs text-gray-600 mt-1 font-sans">
+              Max sizes: Image 10MB, Video 500MB, Document 50MB
+            </p>
+          </div>
+        </Upload.Dragger>
       </div>
 
       {/* Toolbar / Filters */}
       <div className="glass-panel border border-slate-800/50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Type Badge Filter */}
-        <div className="flex bg-slate-950 p-1 border border-slate-800 rounded-xl self-start">
-          {[
+        {/* Type Badge Filter using Antd Segmented */}
+        <Segmented
+          value={typeFilter}
+          onChange={(value) => {
+            setSearchParams(prev => {
+              const next = new URLSearchParams(prev);
+              if (value) next.set('type', value);
+              else next.delete('type');
+              next.set('page', '1');
+              return next;
+            });
+          }}
+          options={[
             { label: 'All Files', value: '' },
             { label: 'Images', value: 'image' },
             { label: 'Videos', value: 'video' },
             { label: 'Documents', value: 'document' },
-          ].map((btn) => (
-            <button
-              key={btn.label}
-              type="button"
-              onClick={() => {
-                setSearchParams(prev => {
-                  const next = new URLSearchParams(prev);
-                  if (btn.value) next.set('type', btn.value);
-                  else next.delete('type');
-                  next.set('page', '1');
-                  return next;
-                });
-              }}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                typeFilter === btn.value
-                  ? 'bg-slate-800 text-accentBlue shadow-sm'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              {btn.label}
-            </button>
-          ))}
-        </div>
+          ]}
+          className="bg-slate-950 p-0.5 border border-slate-800 rounded-xl"
+        />
 
         {/* Search & Refresh */}
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative w-full md:w-64">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-600">
-              <Search className="w-4 h-4" />
-            </span>
-            <input
-              type="text"
-              placeholder="Search file name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-accentBlue/50 focus:ring-1 focus:ring-accentBlue/50 text-slate-850 dark:text-gray-200 placeholder-slate-400 dark:placeholder-gray-600 rounded-xl outline-none transition-all text-xs"
-            />
-          </div>
-          <button
+          <Input
+            placeholder="Search file name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            prefix={<SearchIcon className="w-4 h-4 text-slate-400" />}
+            className="rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-850 dark:text-gray-200 h-9"
+            allowClear
+          />
+          <Button
             onClick={() => revalidate()}
-            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200 transition-colors"
+            icon={<RefreshIcon className="w-4 h-4" />}
+            className="h-9 w-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-gray-400"
             title="Refresh"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          />
         </div>
       </div>
 
@@ -432,7 +384,7 @@ export const MediaLibrary: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {filteredMediaList.map((media) => {
+          {filteredMediaList.map((media: Media) => {
             const isProcessing = media.status === 'processing';
             return (
               <div
@@ -443,7 +395,7 @@ export const MediaLibrary: React.FC = () => {
                 <div className="w-full h-full relative overflow-hidden flex items-center justify-center bg-slate-950">
                   {isProcessing ? (
                     <div className="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center text-xs text-gray-500 gap-2">
-                      <Loader className="w-5 h-5 animate-spin text-accentBlue" />
+                      <Spin size="small" />
                       <span>Processing...</span>
                     </div>
                   ) : media.type === 'video' ? (
@@ -456,18 +408,18 @@ export const MediaLibrary: React.FC = () => {
                         />
                       ) : (
                         <div className="w-full h-full bg-slate-900 flex items-center justify-center">
-                          <Film className="w-8 h-8 text-gray-700" />
+                          <FilmIcon className="w-8 h-8 text-gray-700" />
                         </div>
                       )}
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="w-10 h-10 rounded-full bg-slate-950/80 backdrop-blur-sm border border-slate-800 flex items-center justify-center text-white group-hover:scale-110 transition-all">
-                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                          <PlayIcon className="w-4 h-4 fill-current ml-0.5" />
                         </div>
                       </div>
                     </div>
                   ) : media.type === 'document' || media.mime_type === 'application/pdf' ? (
                     <div className="w-full h-full bg-slate-900/60 flex flex-col items-center justify-center text-red-500 gap-2 p-4">
-                      <FileText className="w-10 h-10 group-hover:scale-105 transition-transform" />
+                      <FileTextIcon className="w-10 h-10 group-hover:scale-105 transition-transform" />
                       <span className="text-[10px] text-gray-400 text-center truncate w-full font-bold">{media.file_name}</span>
                     </div>
                   ) : (
@@ -483,9 +435,9 @@ export const MediaLibrary: React.FC = () => {
                     <div className="absolute top-2.5 left-2.5 z-10 flex gap-1.5">
                       <span className="bg-slate-950/80 border border-slate-800/80 backdrop-blur-sm text-[9px] font-bold text-gray-300 px-1.5 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
                         {media.type === 'video' ? (
-                          <Film className="w-2.5 h-2.5" />
+                          <FilmIcon className="w-2.5 h-2.5" />
                         ) : media.type === 'document' || media.mime_type === 'application/pdf' ? (
-                          <FileText className="w-2.5 h-2.5" />
+                          <FileTextIcon className="w-2.5 h-2.5" />
                         ) : (
                           <ImageIcon className="w-2.5 h-2.5" />
                         )}
@@ -514,14 +466,14 @@ export const MediaLibrary: React.FC = () => {
                         className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-gray-400 hover:text-white transition-colors"
                         title="Preview details"
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <EyeIcon className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setDeleteMedia(media)}
                         className="p-1.5 bg-dangerRed/10 hover:bg-dangerRed/20 border border-dangerRed/30 rounded-lg text-dangerRed transition-colors"
                         title="Delete file"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <TrashIcon className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -532,40 +484,25 @@ export const MediaLibrary: React.FC = () => {
         </div>
       )}
 
-      {/* Pagination Controls */}
+      {/* Pagination Controls using Antd Pagination */}
       {total > limit && (
-        <div className="p-4 bg-slate-950/30 border border-slate-800/40 rounded-2xl flex justify-between items-center">
-          <button
-            disabled={page === 1}
-            onClick={() => {
+        <div className="p-4 bg-slate-950/30 border border-slate-800/40 rounded-2xl flex justify-center items-center">
+          <Pagination
+            current={page}
+            pageSize={limit}
+            total={total}
+            showSizeChanger={false}
+            onChange={(p) => {
               setSearchParams(prev => {
                 const next = new URLSearchParams(prev);
-                next.set('page', String(page - 1));
+                next.set('page', String(p));
                 return next;
               });
             }}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
-          >
-            Previous
-          </button>
-          <span className="text-xs text-gray-500 font-medium">
-            Page {page} of {Math.ceil(total / limit)}
-          </span>
-          <button
-            disabled={page * limit >= total}
-            onClick={() => {
-              setSearchParams(prev => {
-                const next = new URLSearchParams(prev);
-                next.set('page', String(page + 1));
-                return next;
-              });
-            }}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
-          >
-            Next
-          </button>
+          />
         </div>
       )}
+
       {/* Lightbox Modal */}
       {lightboxOpen && Lightbox && (
         <Lightbox

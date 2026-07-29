@@ -1,27 +1,37 @@
 
 networks:
   backend_net:
-    driver: bridge
+    external: true
+    name: ${DOCKER_NETWORK:-blogs_backend_net}
 
 services:
 
   migrate:
+    image: ${DOCKER_USERNAME}/blogs-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
     command: ["/migrate"]
     env_file: .env
+    environment:
+      DB_HOST: ${DB_HOST:-blog-db}
+      MEMCACHED_ADDR: ${MEMCACHED_ADDR:-blog-memcached:11211}
     networks:
       - backend_net
     restart: "no"
 
   api:
+    image: ${DOCKER_USERNAME}/blogs-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
     command: ["/cms"]
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_HOST: ${DB_HOST:-blog-db}
+      MEMCACHED_ADDR: ${MEMCACHED_ADDR:-blog-memcached:11211}
+      UPLOADS_DIR: ${UPLOADS_DIR:-/app/uploads}
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -33,12 +43,17 @@ services:
       - "8080:8080"
 
   worker:
+    image: ${DOCKER_USERNAME}/blogs-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
     command: ["/worker"]
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_HOST: ${DB_HOST:-blog-db}
+      MEMCACHED_ADDR: ${MEMCACHED_ADDR:-blog-memcached:11211}
+      UPLOADS_DIR: ${UPLOADS_DIR:-/app/uploads}
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -48,15 +63,16 @@ services:
       - backend_net
 
   web:
+    image: ${DOCKER_USERNAME}/blogs-web:latest
     build:
       context: ./web
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://api:8080/api
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     restart: unless-stopped
     environment:
-      NODE_ENV: production
-      VITE_API_BASE_URL: http://api:8080/api
+      NODE_ENV: ${NODE_ENV:-production}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     depends_on:
       api:
         condition: service_started

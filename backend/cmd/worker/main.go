@@ -34,11 +34,6 @@ func main() {
 	}
 	appLog.Info("[worker] Connected to PostgreSQL.\n")
 
-	// AutoMigrate bảng translate_jobs
-	if err := db.AutoMigrate(&translate.TranslateJobRow{}); err != nil {
-		log.Fatalf("[worker] AutoMigrate translate_jobs failed: %v", err)
-	}
-
 	// Khởi tạo cache store
 	cacheStore := cache.NewMemcachedStore(cfg.MemcachedAddr)
 	if err := cacheStore.Ping(); err != nil {
