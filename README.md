@@ -8,12 +8,13 @@ A modern, full-stack Blog Engine built for performance, scalability, and AI inte
 The core of this system integrates heavily with NVIDIA's AI endpoints to provide an intelligent experience:
 - **Retrieval-Augmented Generation (RAG) & Chatbot**: Uses `meta/llama-3.3-70b-instruct` to interact with users. It reads the blog's content, breaks it into chunks, creates vector embeddings via `nvidia/nemotron-3-embed-1b`, and stores them in PostgreSQL using the `pgvector` extension. When users ask a question, the agent retrieves the most relevant context to generate accurate answers.
 - **Smart Semantic Search**: Thanks to `pgvector`, users can search by meaning, not just keywords. (System also provides a fallback keyword search if vector search is unavailable).
+- **AI Content Generator**: An intelligent agent that helps draft and auto-generate complete, SEO-optimized blog posts based on brief prompts or outlines, drastically speeding up content creation.
 - **Spam Moderation**: Uses a lightweight model (`meta/llama-3.1-8b-instruct`) to automatically analyze comments and feedback for spam, drastically reducing manual moderation time.
 - **Auto-Translation Agent**: An automated background agent uses AI to translate entire blog posts into different languages reliably, chunking content to ensure context is maintained.
 
 ### 📝 Content Management
 - **Rich Text Editor**: Powerful and intuitive editor for crafting engaging blog posts.
-- **Media & Gallery Library**: Centralized asset management. Background workers automatically handle image processing, resizing, and video handling.
+- **Media & Gallery Library (Cloud Storage)**: Centralized asset management with seamless media uploads to Amazon S3 (or any S3-compatible cloud storage). Background workers automatically handle image processing, resizing, and video handling before securely storing them in the cloud.
 - **Categories & Tags**: Flexible taxonomy system to perfectly organize your posts.
 - **Scheduled Publishing**: Set a time for your posts to go live automatically via dedicated background publish workers.
 - **Multi-language Support**: Context-driven language switching and content localization.
@@ -42,7 +43,7 @@ The core of this system integrates heavily with NVIDIA's AI endpoints to provide
 - **Caching**: Memcached (`bradfitz/gomemcache`)
 - **Security**: JWT (`golang-jwt/jwt/v5`), bcrypt (`golang.org/x/crypto/bcrypt`)
 - **AI/LLM**: NVIDIA AI Endpoints SDK
-- **Integrations**: Cloudflare API, Discord Bot, SMTP Mailer
+- **Integrations**: Cloudflare API, Discord Bot, SMTP Mailer, Amazon S3 (Cloud Storage)
 
 **Frontend (React):**
 - **Core**: React 18, TypeScript, Vite
@@ -54,6 +55,13 @@ The core of this system integrates heavily with NVIDIA's AI endpoints to provide
 - `/backend`: Go source code, REST APIs, database models, repository layers, and background workers.
 - `/web`: React frontend source code, reusable components, custom hooks, contexts, and pages.
 
+## 🤖 Built by AI Agents
+
+This entire blog engine (both frontend and backend) was generated, structured, and implemented by an advanced **AI Coding Agent**. The development process heavily utilized modern agentic methodologies:
+- **Skill-based Code Generation**: The AI leveraged specialized skills (e.g., Golang project layout, concurrency, dependency management, React contexts) to write idiomatic, clean, and highly scalable code.
+- **Structured Workflows**: Followed a systematic AI workflow (Planning -> Execution -> Verification) to ensure all features are robust, well-integrated, and complete.
+- **Strict Agent Rules**: The codebase generation adhered to strictly defined rules and architectural constraints to guarantee consistency, security, and maintainability across the full stack.
+
 ## ⚙️ Getting Started
 
 ### Prerequisites
@@ -61,36 +69,6 @@ The core of this system integrates heavily with NVIDIA's AI endpoints to provide
 - Node.js 18+
 - PostgreSQL (with `pgvector` extension recommended for semantic search)
 - Memcached
-
-### Environment Variables
-Configure your environment by setting up the `.env` file in the root directory:
-```env
-PORT=8080
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=root
-DB_NAME=blogs
-MEMCACHED_ADDR=127.0.0.1:11211
-UPLOADS_DIR=./uploads
-
-# Security
-JWT_SECRET=your_jwt_secret
-
-# AI Models (NVIDIA)
-NVIDIA_API_KEY=your_nvidia_api_key
-NVIDIA_MODEL=meta/llama-3.1-70b-instruct
-NVIDIA_SPAM_MODEL=meta/llama-3.1-8b-instruct
-NVIDIA_CHAT_MODEL=meta/llama-3.3-70b-instruct
-NVIDIA_EMBED_MODEL=nvidia/nemotron-3-embed-1b
-
-# Integrations
-CF_ZONE_ID=
-CF_API_TOKEN=
-DISCORD_PUBLIC_KEY=
-DISCORD_BOT_SECRET=
-DISCORD_AUTHOR_ID=
-```
 
 ### Running the Application
 
