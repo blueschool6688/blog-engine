@@ -46,9 +46,12 @@ The core of this system integrates heavily with NVIDIA's AI endpoints to provide
 - **Integrations**: Cloudflare API, Discord Bot, SMTP Mailer, Amazon S3 (Cloud Storage)
 
 **Frontend (React):**
-- **Core**: React 18, TypeScript, Vite
-- **State/Routing**: Context API (Auth, Theme, Toast, Language), React Router
+- **Core**: React 18, TypeScript, Vite, Server-Side Rendering (SSR)
+- **State/Routing**: Context API (Auth, Theme, Toast, Language), React Router v7 (Framework mode with SSR)
 - **Styling**: Tailwind CSS / Vanilla CSS (Responsive Modern UI)
+
+**Infrastructure & Deployment:**
+- **Docker**: Containerized deployment for consistent environments (Build, Pull, Push, Deploy)
 
 ## 📦 Project Structure
 
@@ -85,6 +88,14 @@ This entire blog engine (both frontend and backend) was generated, structured, a
    npm install
    npm run dev
    ```
+
+## 🐳 Docker Deployment
+
+The application is designed to be fully containerized, making it easy to build, push, pull, and deploy across any environment.
+
+# Deploy services in the background
+docker-compose up -d
+```
 
 ## 📄 License
 This project is licensed under the MIT License.
