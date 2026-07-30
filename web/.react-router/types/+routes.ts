@@ -60,6 +60,9 @@ type Pages = {
   "/admin/translate-jobs": {
     params: {};
   };
+  "/admin/chat-logs": {
+    params: {};
+  };
   "/admin/settings": {
     params: {};
   };
@@ -90,11 +93,11 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/posts/:slug" | "/feedback" | "/authors" | "/authors/:nickname" | "/forgot-password" | "/reset-password" | "/system/login" | "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id" | "/*";
+    page: "/" | "/posts/:slug" | "/feedback" | "/authors" | "/authors/:nickname" | "/forgot-password" | "/reset-password" | "/system/login" | "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/chat-logs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id" | "/*";
   };
   "layouts/RootLayout.tsx": {
     id: "root-layout";
-    page: "/" | "/posts/:slug" | "/feedback" | "/authors" | "/authors/:nickname" | "/forgot-password" | "/reset-password" | "/system/login" | "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id" | "/*";
+    page: "/" | "/posts/:slug" | "/feedback" | "/authors" | "/authors/:nickname" | "/forgot-password" | "/reset-password" | "/system/login" | "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/chat-logs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id" | "/*";
   };
   "layouts/PublicLayout.tsx": {
     id: "layouts/PublicLayout";
@@ -134,11 +137,11 @@ type RouteFiles = {
   };
   "components/ProtectedRoute.tsx": {
     id: "components/ProtectedRoute";
-    page: "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id";
+    page: "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/chat-logs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id";
   };
   "layouts/AdminLayout.tsx": {
     id: "layouts/AdminLayout";
-    page: "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id";
+    page: "/admin" | "/admin/feedbacks" | "/admin/media" | "/admin/categories" | "/admin/tags" | "/admin/comments" | "/admin/translate-jobs" | "/admin/chat-logs" | "/admin/settings" | "/admin/users" | "/admin/audit-logs" | "/admin/posts" | "/admin/posts/new" | "/admin/posts/edit/:id";
   };
   "pages/Dashboard.tsx": {
     id: "pages/Dashboard";
@@ -167,6 +170,10 @@ type RouteFiles = {
   "pages/TranslateJobs.tsx": {
     id: "pages/TranslateJobs";
     page: "/admin/translate-jobs";
+  };
+  "pages/ChatLogsAdmin.tsx": {
+    id: "pages/ChatLogsAdmin";
+    page: "/admin/chat-logs";
   };
   "pages/Settings.tsx": {
     id: "pages/Settings";
@@ -218,6 +225,7 @@ type RouteModules = {
   "pages/Tags": typeof import("./src/pages/Tags.tsx");
   "pages/CommentModeration": typeof import("./src/pages/CommentModeration.tsx");
   "pages/TranslateJobs": typeof import("./src/pages/TranslateJobs.tsx");
+  "pages/ChatLogsAdmin": typeof import("./src/pages/ChatLogsAdmin.tsx");
   "pages/Settings": typeof import("./src/pages/Settings.tsx");
   "pages/Users": typeof import("./src/pages/Users.tsx");
   "pages/AuditLog": typeof import("./src/pages/AuditLog.tsx");

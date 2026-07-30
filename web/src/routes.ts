@@ -23,6 +23,7 @@ export default [
         route("tags", "pages/Tags.tsx"),
         route("comments", "pages/CommentModeration.tsx"),
         route("translate-jobs", "pages/TranslateJobs.tsx"),
+        route("chat-logs", "pages/ChatLogsAdmin.tsx"),
         route("settings", "pages/Settings.tsx"),
         route("users", "pages/Users.tsx"),
         route("audit-logs", "pages/AuditLog.tsx"),

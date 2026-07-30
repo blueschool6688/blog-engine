@@ -2,6 +2,7 @@ import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteLoaderData } f
 import type { MetaFunction } from "react-router";
 import React from "react";
 import "./index.css";
+import { settingsService, getFullUrl } from "./services/api";
 function parseCookies(cookieHeader: string): Record<string, string> {
   const list: Record<string, string> = {};
   if (!cookieHeader) return list;
@@ -20,20 +21,33 @@ export async function loader({ request }: { request: Request }) {
   const cookies = parseCookies(cookieHeader);
   const theme = cookies.theme === "light" ? "light" : "dark";
   const language = cookies.language === "en" ? "en" : "vi";
-  return { theme, language };
+
+  let settings: Record<string, string> = {};
+  try {
+    const res = await settingsService.getPublic();
+    if (res.success && res.data) {
+      settings = res.data;
+    }
+  } catch (err) {
+    console.error("Failed to load settings in root loader", err);
+  }
+
+  return { theme, language, settings };
 }
 
-export const meta: MetaFunction = () => {
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+  const settings = data?.settings || {};
   return [
-    { title: "BookData Store" },
-    { name: "description", content: "Nền tảng chia sẻ kiến thức" },
+    { title: settings.site_name || "Blogs" },
+    { name: "description", content: settings.site_description || "Nền tảng chia sẻ kiến thức" },
   ];
 };
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const data = useRouteLoaderData("root") as { theme: string; language: string } | null;
+  const data = useRouteLoaderData("root") as { theme: string; language: string; settings?: Record<string, string> } | null;
   const theme = data?.theme || "dark";
   const language = data?.language || "vi";
+  const settings = data?.settings || {};
 
   return (
     <html lang={language} className={theme}>
@@ -43,6 +57,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+        {settings.logo_url && <link rel="icon" type="image/x-icon" href={getFullUrl(settings.logo_url)} />}
         <Meta />
         <Links />
       </head>

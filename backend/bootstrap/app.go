@@ -64,6 +64,10 @@ import (
 
 	// Translate Domain
 	translateDomain "backend/internal/translate"
+	
+	// RAG Domain
+	ragDomain "backend/internal/rag"
+	nvidiaClientPkg "backend/internal/nvidia"
 
 	// AI / Generation Domain
 	aiClientPkg "backend/pkg/ai"
@@ -181,6 +185,10 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	translateSvc := translateDomain.NewService(nvidiaClient, translateCache, log, cfg.TranslateChunkSize, translateJobStore)
 	translateHandler := translateDomain.NewHandler(translateSvc)
 
+	// Khởi tạo RAG Domain
+	ragNvidiaClient := nvidiaClientPkg.NewClient(cfg)
+	ragHandler := ragDomain.NewHandler(db, ragNvidiaClient, cfg)
+
 	app := fiber.New(fiber.Config{
 		ErrorHandler: middleware.ErrorHandler,
 		BodyLimit:    50 * 1024 * 1024,
@@ -287,6 +295,10 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	public.Post("/feedbacks", feedbackHandler.Create)
 	public.Get("/settings", settingsHandler.GetPublicSettings)
 
+	// RAG Chat route
+	public.Post("/chat", sensitiveLimiter, ragHandler.Chat)
+	public.Get("/chat/history", ragHandler.GetHistory)
+
 	// Comments & Reactions ()
 	public.Get("/posts/:id/comments", commentHandler.ListComments)
 	public.Post("/posts/:id/comments", commentLimiter, commentHandler.CreateComment)
@@ -308,6 +320,10 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	// Settings
 	protected.Get("/settings", settingsHandler.GetSettings)
 	protected.Put("/settings", settingsHandler.UpdateSettings)
+
+	// Chat Logs (Admin)
+	protected.Get("/chat-logs", ragHandler.ListConversations)
+	protected.Get("/chat-logs/:fingerprint", ragHandler.GetConversationMessages)
 
 	// AI Routes
 	protected.Post("/ai/generate-post", aiHandler.GeneratePost)

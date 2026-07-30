@@ -31,6 +31,10 @@ type Config struct {
 	NVIDIAAPIKey       string
 	NVIDIAModel        string
 	NVIDIASpamModel    string
+	NVIDIAAPIBaseURL   string
+	NVIDIAEmbedModel   string
+	NVIDIAChatModel    string
+	RagTopK            int
 	// TranslateChunkSize: số ký tự tối đa mỗi chunk khi dịch nội dung dài
 	TranslateChunkSize int
 	// Discord webhook settings
@@ -78,6 +82,10 @@ func Load() *Config {
 		NVIDIAAPIKey:       getEnv("NVIDIA_API_KEY", ""),
 		NVIDIAModel:        getEnv("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct"),
 		NVIDIASpamModel:    getEnv("NVIDIA_SPAM_MODEL", "meta/llama-3.1-8b-instruct"),
+		NVIDIAAPIBaseURL:   getEnv("NVIDIA_API_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+		NVIDIAEmbedModel:   getEnv("NVIDIA_EMBED_MODEL", "snowflake/arctic-embed-l"),
+		NVIDIAChatModel:    getEnv("NVIDIA_CHAT_MODEL", "meta/llama-3.1-8b-instruct"),
+		RagTopK:            getEnvInt("RAG_TOP_K", 5),
 		TranslateChunkSize: getEnvInt("TRANSLATE_CHUNK_SIZE", 2000),
 		DiscordPublicKey:   getEnv("DISCORD_PUBLIC_KEY", ""),
 		DiscordBotSecret:   getEnv("DISCORD_BOT_SECRET", ""),

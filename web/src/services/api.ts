@@ -658,3 +658,45 @@ export const aiService = {
   },
 };
 
+export interface RAGChatRequest {
+  question: string;
+}
+
+export interface RAGChatResponse {
+  answer: string;
+  sources: { id: number; title: string; slug: string }[];
+}
+
+export interface ChatMessage {
+  id: number;
+  fingerprint: string;
+  role: 'user' | 'bot';
+  content: string;
+  created_at: string;
+}
+
+export interface Conversation {
+  fingerprint: string;
+  message_count: number;
+  last_active: string;
+}
+
+export const ragService = {
+  chat: async (req: RAGChatRequest): Promise<APIResponse<RAGChatResponse>> => {
+    const response = await api.post<APIResponse<RAGChatResponse>>('/public/chat', req);
+    return response.data;
+  },
+  getHistory: async (): Promise<APIResponse<ChatMessage[]>> => {
+    const response = await api.get<APIResponse<ChatMessage[]>>('/public/chat/history');
+    return response.data;
+  },
+  listConversations: async (): Promise<APIResponse<Conversation[]>> => {
+    const response = await api.get<APIResponse<Conversation[]>>('/chat-logs');
+    return response.data;
+  },
+  getConversation: async (fingerprint: string): Promise<APIResponse<ChatMessage[]>> => {
+    const response = await api.get<APIResponse<ChatMessage[]>>(`/chat-logs/${fingerprint}`);
+    return response.data;
+  },
+};
+

@@ -34,18 +34,16 @@ import (
 )
 
 func main() {
-	action  := flag.String("action", "up", "Action: up | down | down-all | status | force")
-	steps   := flag.Int("steps", 1, "Number of steps for 'down' action")
+	action := flag.String("action", "up", "Action: up | down | down-all | status | force")
+	steps := flag.Int("steps", 1, "Number of steps for 'down' action")
 	version := flag.Int("version", -1, "Target version for 'force' action")
 	flag.Parse()
 
 	loadEnv()
 
-	dsn            := buildDSN()
+	dsn := buildDSN()
 	migrationsPath := resolveMigrationsDir()
 
-	// golang-migrate expects a file:// URL.
-	// On Windows we need forward slashes: file:///C:/path/to/migrations
 	sourceURL := fmt.Sprintf("file://%s", filepath.ToSlash(migrationsPath))
 
 	m, err := migrate.New(sourceURL, dsn)
@@ -163,12 +161,12 @@ func loadEnv() {
 
 // buildDSN constructs a postgres:// DSN from environment variables.
 func buildDSN() string {
-	host     := getEnv("DB_HOST", "127.0.0.1")
-	port     := getEnv("DB_PORT", "5432")
-	user     := getEnv("DB_USER", "postgres")
+	host := getEnv("DB_HOST", "127.0.0.1")
+	port := getEnv("DB_PORT", "5432")
+	user := getEnv("DB_USER", "postgres")
 	password := getEnv("DB_PASSWORD", "root")
-	dbname   := getEnv("DB_NAME", "blogs")
-	sslmode  := getEnv("DB_SSLMODE", "disable")
+	dbname := getEnv("DB_NAME", "blogs")
+	sslmode := getEnv("DB_SSLMODE", "disable")
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		user, password, host, port, dbname, sslmode,

@@ -42,15 +42,19 @@ export async function loader({ params }: { params: any }) {
   }
 }
 
-export const meta: MetaFunction = ({ data }: any) => {
-  if (!data?.post) return [{ title: 'BookData Store' }];
+export const meta: MetaFunction = ({ data, matches }: any) => {
+  const rootMatch = matches.find((m: any) => m.id === "root");
+  const settings = rootMatch?.data?.settings || {};
+  const siteName = settings.site_name || 'Blogs';
+
+  if (!data?.post) return [{ title: siteName }];
   
   // Try to use the English title if available, or just the default title (since we don't have language context here directly)
   const title = data.post.title || data.post.title_en || 'Bài viết';
   const desc = data.post.excerpt || data.post.excerpt_en || '';
   
   return [
-    { title: `${title} | BookData Store` },
+    { title: `${title} | ${siteName}` },
     { name: "description", content: desc },
   ];
 };

@@ -9,11 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"backend/internal/rag"
 	"backend/internal/translate"
 	"backend/pkg/cache"
 	"backend/pkg/config"
 	"backend/pkg/database"
 	"backend/pkg/logger"
+	"backend/internal/nvidia"
 )
 
 func main() {
@@ -48,12 +50,22 @@ func main() {
 	}
 
 	// Khởi tạo translate domain
-	nvidiaClient := translate.NewNVIDIAClient(cfg.NVIDIAAPIKey, cfg.NVIDIAModel)
+	translateNvidiaClient := translate.NewNVIDIAClient(cfg.NVIDIAAPIKey, cfg.NVIDIAModel)
 	translateCache := translate.NewMemcachedTranslateCache(cacheStore)
 	jobStore := translate.NewPostgresJobStore(db)
-	svc := translate.NewService(nvidiaClient, translateCache, appLog, cfg.TranslateChunkSize, jobStore)
+	svc := translate.NewService(translateNvidiaClient, translateCache, appLog, cfg.TranslateChunkSize, jobStore)
 
-	appLog.Info("[worker] Ready. Polling translate_jobs every 2s...\n")
+	// Khởi tạo RAG domain
+	ragNvidiaClient := nvidia.NewClient(cfg)
+	ragWorker := rag.NewWorker(db, ragNvidiaClient)
+
+	// Chạy RAG worker trong goroutine
+	go func() {
+		appLog.Info("[worker] RAG worker started.\n")
+		ragWorker.Start(ctx)
+	}()
+
+	appLog.Info("[worker] Ready. Polling jobs...\n")
 	fmt.Println("[worker] Press Ctrl+C to stop.")
 
 	ticker := time.NewTicker(2 * time.Second)

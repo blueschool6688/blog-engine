@@ -6,6 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { LayoutDashboard, LogIn, Sun, Moon, ArrowUp, Menu, X, MapPin, CloudSun, CloudRain } from 'lucide-react';
 import { settingsService, getFullUrl } from '../services/api';
 import { Snowfall } from '@namnguyenthanhwork/react-snowfall-effect';
+import { RagChatbot } from '../components/RagChatbot';
 
 interface WeatherData {
   city: string;
@@ -387,6 +388,8 @@ export const PublicLayout: React.FC = () => {
       >
         <ArrowUp className="w-4 h-4" />
       </button>
+
+      <RagChatbot />
     </div>
   );
 };

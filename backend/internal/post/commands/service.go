@@ -147,6 +147,10 @@ func (s *CommandService) CreatePost(ctx context.Context, cmd CreatePostCommand) 
 		return nil, fmt.Errorf("create post: %w", err)
 	}
 
+	if post.Status == "published" {
+		_ = s.repo.InsertRagJob(ctx, post.ID)
+	}
+
 	s.invalidateListCache(ctx)
 
 	return post, nil
@@ -213,6 +217,10 @@ func (s *CommandService) UpdatePost(ctx context.Context, id uint, cmd UpdatePost
 
 	if err := s.repo.Update(ctx, post); err != nil {
 		return nil, fmt.Errorf("update post: %w", err)
+	}
+
+	if post.Status == "published" {
+		_ = s.repo.InsertRagJob(ctx, post.ID)
 	}
 
 	s.invalidateListCache(ctx)
@@ -460,6 +468,10 @@ func (s *CommandService) BulkPost(ctx context.Context, cmd BulkPostCommand) (int
 			return 0, fmt.Errorf("bulk publish: %w", result.Error)
 		}
 		rowsAffected = result.RowsAffected
+		
+		for _, id := range cmd.IDs {
+			_ = s.repo.InsertRagJob(ctx, id)
+		}
 	case "draft":
 		result := s.repo.DB.WithContext(ctx).Model(&models.Post{}).
 			Where("id IN ?", cmd.IDs).

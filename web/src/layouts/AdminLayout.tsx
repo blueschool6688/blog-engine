@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, Outlet } from 'react-router';
-import { LayoutDashboard, Image, FileText, Folder, Tag, Heart, LogOut, Settings, Users, ActivitySquare, MessageSquare, Sun, Moon, Languages } from 'lucide-react';
+import { LayoutDashboard, Image, FileText, Folder, Tag, Heart, LogOut, Settings, Users, ActivitySquare, MessageSquare, Sun, Moon, Languages, Bot } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -26,6 +26,7 @@ export const AdminLayout: React.FC = () => {
     ...(isAdmin ? [
       { name: t('users'), path: '/admin/users', icon: Users },
       { name: t('audit_logs'), path: '/admin/audit-logs', icon: ActivitySquare },
+      { name: t('chat_logs'), path: '/admin/chat-logs', icon: Bot },
     ] : []),
   ];
 
@@ -49,6 +50,7 @@ export const AdminLayout: React.FC = () => {
     if (segment === 'users') return t('users');
     if (segment === 'audit-logs') return t('audit_logs');
     if (segment === 'translate-jobs') return t('translate_jobs');
+    if (segment === 'chat-logs') return t('chat_logs');
     return segment;
   };
 

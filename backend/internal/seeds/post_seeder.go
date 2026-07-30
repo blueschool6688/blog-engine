@@ -311,6 +311,9 @@ func (s *PostSeeder) Run(db *gorm.DB) error {
 		if err := db.Create(post).Error; err != nil {
 			return fmt.Errorf("insert post %q: %w", p.Slug, err)
 		}
+
+		// Tạo job RAG để Worker cắt nhỏ và lưu vào blog_chunks
+		_ = db.Exec("INSERT INTO rag_jobs (post_id, status) VALUES (?, 'pending')", post.ID).Error
 	}
 	return nil
 }
@@ -319,7 +322,7 @@ func (s *PostSeeder) Run(db *gorm.DB) error {
 func resolveAuthors(db *gorm.DB) (map[string]uint, error) {
 	var users []authModels.User
 	if err := db.Where("email IN ?", []string{
-		"admin@example.com",
+		"nthanhtruong883@gmail.com",
 		"editor@example.com",
 	}).Find(&users).Error; err != nil {
 		return nil, fmt.Errorf("load authors: %w", err)

@@ -67,3 +67,9 @@ func (r *PostRepository) Restore(ctx context.Context, id uint) error {
 func (r *PostRepository) PermanentDelete(ctx context.Context, id uint) error {
 	return r.DB.WithContext(ctx).Unscoped().Delete(&models.Post{}, id).Error
 }
+
+func (r *PostRepository) InsertRagJob(ctx context.Context, postID uint) error {
+	return r.DB.WithContext(ctx).Exec(`
+		INSERT INTO rag_jobs (post_id, status) VALUES (?, 'pending')
+	`, postID).Error
+}
