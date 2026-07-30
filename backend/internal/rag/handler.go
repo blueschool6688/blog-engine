@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type Handler struct {
@@ -80,8 +81,8 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 		if topK == 0 {
 			topK = 5
 		}
-		// Try pgvector query
-		err = h.db.Raw(`
+		// Try pgvector query (using silent logger to prevent expected errors when pgvector is missing)
+		err = h.db.Session(&gorm.Session{Logger: h.db.Logger.LogMode(logger.Silent)}).Raw(`
 			SELECT post_id, chunk_index, content, embedding <=> ?::vector AS distance
 			FROM blog_chunks
 			ORDER BY distance ASC
