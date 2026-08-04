@@ -700,3 +700,18 @@ export const ragService = {
   },
 };
 
+export const documentService = {
+  parse: async (file: File): Promise<APIResponse<{ markdown: string }>> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post<APIResponse<{ markdown: string }>>('/documents/parse', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 180000, // 3 minutes timeout
+    });
+    return response.data;
+  },
+};
+
+

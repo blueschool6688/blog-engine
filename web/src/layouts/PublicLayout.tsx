@@ -98,8 +98,7 @@ export const PublicLayout: React.FC = () => {
           to="/"
           end
           className={({ isActive }) =>
-            `px-3 text-sm font-semibold transition-all duration-200 flex items-center h-full ${
-              isActive ? 'text-accentBlue' : 'text-slate-600 dark:text-gray-400'
+            `px-3 text-sm font-semibold transition-all duration-200 flex items-center h-full ${isActive ? 'text-accentBlue' : 'text-slate-600 dark:text-gray-400'
             }`
           }
         >
@@ -113,8 +112,7 @@ export const PublicLayout: React.FC = () => {
         <NavLink
           to="/authors"
           className={({ isActive }) =>
-            `px-3 text-sm font-semibold transition-all duration-200 flex items-center h-full ${
-              isActive ? 'text-accentBlue' : 'text-slate-600 dark:text-gray-400'
+            `px-3 text-sm font-semibold transition-all duration-200 flex items-center h-full ${isActive ? 'text-accentBlue' : 'text-slate-600 dark:text-gray-400'
             }`
           }
         >
@@ -128,8 +126,7 @@ export const PublicLayout: React.FC = () => {
         <NavLink
           to="/feedback"
           className={({ isActive }) =>
-            `px-3 text-sm font-semibold transition-all duration-200 flex items-center h-full ${
-              isActive ? 'text-accentBlue' : 'text-slate-600 dark:text-gray-400'
+            `px-3 text-sm font-semibold transition-all duration-200 flex items-center h-full ${isActive ? 'text-accentBlue' : 'text-slate-600 dark:text-gray-400'
             }`
           }
         >
@@ -139,6 +136,7 @@ export const PublicLayout: React.FC = () => {
     },
   ];
 
+  console.log(settings?.snowfall_enabled)
   return (
     <Layout
       className="min-h-screen transition-colors duration-300 selection:bg-accentBlue/25 selection:text-accentBlue"
@@ -146,7 +144,7 @@ export const PublicLayout: React.FC = () => {
         backgroundColor: theme === 'dark' ? 'var(--custom-dark-bg, #090D16)' : 'var(--custom-light-bg, #F8FAFC)',
       }}
     >
-      {settings?.snowfall_enabled && (
+      {settings?.snowfall_enabled === 'true' && (
         <Snowfall
           snowflakeCount={parseInt(settings?.snowfall_count || '150', 10)}
           fps={parseInt(settings?.snowfall_fps || '60', 10)}

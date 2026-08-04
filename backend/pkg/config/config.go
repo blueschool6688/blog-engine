@@ -48,6 +48,7 @@ type Config struct {
 	S3Bucket        string
 	S3AccessKey     string
 	S3SecretKey     string
+	MinerUServiceURL string
 }
 
 func Load() *Config {
@@ -96,6 +97,7 @@ func Load() *Config {
 		S3Bucket:        getEnv("S3_BUCKET", ""),
 		S3AccessKey:     getEnv("S3_ACCESS_KEY", ""),
 		S3SecretKey:     getEnv("S3_SECRET_KEY", ""),
+		MinerUServiceURL: getEnv("MINERU_SERVICE_URL", "http://localhost:8082"),
 	}
 }
 

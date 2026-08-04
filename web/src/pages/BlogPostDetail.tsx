@@ -580,8 +580,8 @@ export const BlogPostDetail: React.FC = () => {
             className="mb-6"
           />
 
-          <div className={`flex flex-col gap-8 lg:gap-12 items-start w-full max-w-full ${post.is_document ? 'lg:flex-col' : 'lg:flex-row'}`}>
-            <article className={`flex-1 min-w-0 w-full max-w-full ${post.is_document ? 'w-full' : ''}`}>
+          <div className={`flex flex-col gap-8 lg:gap-12 items-start w-full max-w-full ${(post.is_document && toc.length === 0) ? 'lg:flex-col' : 'lg:flex-row'}`}>
+            <article className={`flex-1 min-w-0 w-full max-w-full ${(post.is_document && toc.length === 0) ? 'w-full' : ''}`}>
               {primaryCategory && (
                 <div className="mb-4">
                   <Link
@@ -860,7 +860,7 @@ export const BlogPostDetail: React.FC = () => {
               <CommentSection postId={post.id} />
             </article>
 
-            {!post.is_document && (
+            {(!post.is_document || toc.length > 0) && (
               <aside className="hidden lg:block w-64 xl:w-72 shrink-0 sticky top-[76px] self-start">
                 <div className="space-y-5">
                   {toc.length > 0 && (

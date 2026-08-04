@@ -65,6 +65,10 @@ import (
 	// Translate Domain
 	translateDomain "backend/internal/translate"
 	
+	// Document Parser Domain
+	documentParserHandlers "backend/internal/document_parser/handlers"
+	documentParserService "backend/internal/document_parser/service"
+	
 	// RAG Domain
 	ragDomain "backend/internal/rag"
 	nvidiaClientPkg "backend/internal/nvidia"
@@ -188,6 +192,10 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	// Khởi tạo RAG Domain
 	ragNvidiaClient := nvidiaClientPkg.NewClient(cfg)
 	ragHandler := ragDomain.NewHandler(db, ragNvidiaClient, cfg)
+
+	// Khởi tạo Document Parser Domain
+	documentParserSvc := documentParserService.NewDocumentParserService(cfg, dynStorage, mediaRepo, db)
+	documentParserHandler := documentParserHandlers.NewDocumentParserHandler(documentParserSvc)
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: middleware.ErrorHandler,
@@ -383,6 +391,9 @@ func New(ctx context.Context) (*fiber.App, func(), error) {
 	protected.Get("/translate/jobs", translateHandler.ListJobs)
 	protected.Post("/translate/jobs/:job_id/retry", translateHandler.RetryJob)
 	protected.Delete("/translate/jobs/:job_id", translateHandler.DeleteJob)
+
+	// Document Parser routes
+	protected.Post("/documents/parse", documentParserHandler.Parse)
 
 	// Admin-only Routes
 	adminOnly := protected.Group("", middleware.RoleGuard("admin"))

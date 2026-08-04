@@ -28,6 +28,7 @@ export const AdminLayout: React.FC = () => {
     { name: t('comments'), path: '/admin/comments', icon: MessageSquare },
     { name: t('feedbacks'), path: '/admin/feedbacks', icon: Heart },
     { name: t('translate_jobs'), path: '/admin/translate-jobs', icon: Languages },
+    { name: t('document_parser'), path: '/admin/document-parser', icon: FileText },
     { name: t('settings'), path: '/admin/settings', icon: Settings },
     ...(isAdmin ? [
       { name: t('users'), path: '/admin/users', icon: Users },
@@ -56,6 +57,7 @@ export const AdminLayout: React.FC = () => {
     if (segment === 'users') return t('users');
     if (segment === 'audit-logs') return t('audit_logs');
     if (segment === 'translate-jobs') return t('translate_jobs');
+    if (segment === 'document-parser') return t('document_parser');
     if (segment === 'chat-logs') return t('chat_logs');
     return segment;
   };

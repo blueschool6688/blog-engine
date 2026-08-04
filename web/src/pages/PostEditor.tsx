@@ -314,6 +314,17 @@ export const PostEditor: React.FC = () => {
     }
   }, [isEdit, post, form]);
 
+  useEffect(() => {
+    if (!isEdit) {
+      const importedContent = localStorage.getItem('imported_content');
+      if (importedContent) {
+        form.setFieldsValue({ content: importedContent });
+        localStorage.removeItem('imported_content');
+        showSuccess('Loaded content imported from document!');
+      }
+    }
+  }, [isEdit, form, showSuccess]);
+
   const loadMedia = async () => {
     try {
       const res = await mediaService.list({ limit: 100 });

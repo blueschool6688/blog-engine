@@ -1,0 +1,250 @@
+import os
+import shutil
+import base64
+import tempfile
+import subprocess
+import logging
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import JSONResponse
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("mineru_service")
+
+# Try to import magic-pdf layout analysis pipeline
+MINERU_AVAILABLE = False
+try:
+    from magic_pdf.pipe.UNIPipe import UNIPipe
+    from magic_pdf.data.data_reader_writer import FileBasedDataWriter
+    MINERU_AVAILABLE = True
+    logger.info("magic_pdf (MinerU) library loaded successfully.")
+except ImportError as e:
+    logger.warning(f"magic_pdf library not available: {e}. Using lightweight fallback engine (PyMuPDF + Mammoth).")
+
+# Import lightweight alternatives
+try:
+    import fitz  # PyMuPDF
+    import mammoth
+    LIGHTWEIGHT_AVAILABLE = True
+    logger.info("Lightweight parsers (PyMuPDF & Mammoth) loaded successfully.")
+except ImportError as e:
+    LIGHTWEIGHT_AVAILABLE = False
+    logger.error(f"Failed to load lightweight fallback libraries: {e}")
+
+app = FastAPI(title="MinerU Parser Service")
+
+@app.get("/")
+def read_root():
+    return {
+        "message": "MinerU Parser Service is running. Access /docs for API documentation.",
+        "health": "/health",
+        "mineru_available": MINERU_AVAILABLE,
+        "lightweight_available": LIGHTWEIGHT_AVAILABLE
+    }
+
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy",
+        "mineru_available": MINERU_AVAILABLE,
+        "lightweight_available": LIGHTWEIGHT_AVAILABLE
+    }
+
+def slugify(text: str) -> str:
+    import re
+    slug = text.lower()
+    # Replace non-alphanumeric characters (supporting Latin/Vietnamese accents) with hyphens
+    slug = re.sub(r"[^a-z0-9\u00C0-\u024F]+", "-", slug)
+    return slug.strip("-")
+
+def linkify_toc_lines(text: str) -> str:
+    import re
+    lines = text.split("\n")
+    processed_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            # Match: Title + sequence of dots/spaces + page number
+            match = re.match(r"^([a-zA-Z0-9\s:,\-\'\u00C0-\u024F\?\!\/]+?)(?:\s*[\.\s]{4,}\s*)(\d+)\s*$", stripped)
+            if match:
+                title = match.group(1).strip()
+                slug = slugify(title)
+                dots_part = stripped[match.end(1):]
+                line = f"[{title}](#{slug}){dots_part}"
+        processed_lines.append(line)
+    return "\n".join(processed_lines)
+
+def promote_headings_to_markdown(text: str) -> str:
+    # First linkify any TOC lines in the document
+    text = linkify_toc_lines(text)
+    
+    lines = text.split("\n")
+    processed_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # Heuristic: if a line starts with Chapter, Preface, Appendix, Introduction and is short (<100 chars)
+        # and doesn't already start with a heading mark (#)
+        if stripped and not stripped.startswith("#") and len(stripped) < 100:
+            # Exclude Table of Contents rows containing dots or page number link structures
+            if "..." in stripped or " . ." in stripped or ". ." in stripped or "](#" in stripped:
+                processed_lines.append(line)
+                continue
+                
+            is_heading = False
+            # Check standard patterns (Case insensitive)
+            import re
+            if re.match(r"^(Chapter\s+\d+|Preface|Introduction|Appendix\s+[A-Z]|Contents|Conclusion|Summary)", stripped, re.IGNORECASE):
+                is_heading = True
+            
+            if is_heading:
+                line = f"## {stripped}"
+                
+        processed_lines.append(line)
+    return "\n".join(processed_lines)
+
+def parse_docx_light(docx_path, image_dir_path):
+    images = []
+
+    def convert_image(image):
+        with image.open() as image_bytes:
+            data = image_bytes.read()
+            ext = "png"
+            if image.content_type == "image/jpeg":
+                ext = "jpeg"
+            elif image.content_type == "image/gif":
+                ext = "gif"
+
+            img_name = f"image_docx_{len(images) + 1}.{ext}"
+            img_path = os.path.join(image_dir_path, img_name)
+            with open(img_path, "wb") as f:
+                f.write(data)
+
+            images.append(img_name)
+            return {
+                "src": f"images/{img_name}"
+            }
+
+    with open(docx_path, "rb") as docx_file:
+        result = mammoth.convert_to_markdown(docx_file, convert_image=mammoth.images.img_element(convert_image))
+        return promote_headings_to_markdown(result.value)
+
+def parse_pdf_light(pdf_path, image_dir_path):
+    doc = fitz.open(pdf_path)
+    md_blocks = []
+
+    for page_idx, page in enumerate(doc):
+        text = page.get_text("text")
+        if text:
+            md_blocks.append(text)
+
+        # Extract images on the page
+        image_list = page.get_images(full=True)
+        for img_idx, img_info in enumerate(image_list):
+            xref = img_info[0]
+            base_image = doc.extract_image(xref)
+            image_bytes = base_image["image"]
+            image_ext = base_image["ext"]
+
+            img_name = f"image_pdf_page_{page_idx+1}_{img_idx+1}.{image_ext}"
+            img_path = os.path.join(image_dir_path, img_name)
+
+            with open(img_path, "wb") as f:
+                f.write(image_bytes)
+
+            md_blocks.append(f"\n![](images/{img_name})\n")
+
+    full_text = "\n\n".join(md_blocks)
+    return promote_headings_to_markdown(full_text)
+
+@app.post("/parse")
+async def parse_file(file: UploadFile = File(...)):
+    filename = file.filename
+    suffix = os.path.splitext(filename)[1].lower()
+    if suffix not in [".pdf", ".docx"]:
+        raise HTTPException(status_code=400, detail="Only PDF and DOCX files are allowed.")
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_path = os.path.join(temp_dir, filename)
+        logger.info(f"Saving uploaded file to {input_path}")
+        
+        with open(input_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        image_dir_name = "images"
+        image_dir_path = os.path.join(temp_dir, image_dir_name)
+        os.makedirs(image_dir_path, exist_ok=True)
+
+        markdown_content = ""
+
+        # Check engine mode
+        if not MINERU_AVAILABLE:
+            logger.info("MinerU not available. Running lightweight fallback engine...")
+            if not LIGHTWEIGHT_AVAILABLE:
+                raise HTTPException(status_code=500, detail="No parsing engines are available on the server.")
+            
+            try:
+                if suffix == ".docx":
+                    markdown_content = parse_docx_light(input_path, image_dir_path)
+                else:
+                    markdown_content = parse_pdf_light(input_path, image_dir_path)
+            except Exception as e:
+                logger.error(f"Lightweight parser failed: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Parsing failed: {str(e)}")
+
+        else:
+            # Run heavy MinerU pipeline
+            pdf_path = input_path
+            
+            # If it's docx, convert to PDF via LibreOffice headless
+            if suffix == ".docx":
+                logger.info("Converting DOCX to PDF via LibreOffice...")
+                try:
+                    cmd = ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", temp_dir, input_path]
+                    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+                    logger.info(f"LibreOffice stdout: {result.stdout}")
+                    
+                    pdf_filename = os.path.splitext(filename)[0] + ".pdf"
+                    pdf_path = os.path.join(temp_dir, pdf_filename)
+                    if not os.path.exists(pdf_path):
+                        raise HTTPException(status_code=500, detail="LibreOffice conversion failed to produce PDF output.")
+                except Exception as e:
+                    logger.error(f"LibreOffice exception: {str(e)}")
+                    raise HTTPException(status_code=500, detail=f"Failed to run LibreOffice: {str(e)}")
+
+            try:
+                logger.info(f"Starting MinerU parse on {pdf_path}")
+                with open(pdf_path, "rb") as f:
+                    pdf_bytes = f.read()
+                
+                jso_useful_key = {"_pdf_type": "", "model_list": []}
+                image_writer = FileBasedDataWriter(image_dir_path)
+                
+                pipe = UNIPipe(pdf_bytes, jso_useful_key, image_writer)
+                pipe.pipe_classify()
+                pipe.pipe_analyze()
+                pipe.pipe_parse()
+                
+                markdown_content = pipe.pipe_mk_markdown(image_dir_name, drop_mode="none")
+            except Exception as e:
+                logger.error(f"MinerU parsing failed: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"MinerU parsing failed: {str(e)}")
+
+        # Read and encode extracted images (works for both MinerU and Lightweight parser)
+        images_payload = []
+        if os.path.exists(image_dir_path):
+            for img_name in os.listdir(image_dir_path):
+                img_path = os.path.join(image_dir_path, img_name)
+                if os.path.isfile(img_path) and img_name.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+                    with open(img_path, "rb") as img_file:
+                        encoded_img = base64.b64encode(img_file.read()).decode("utf-8")
+                        images_payload.append({
+                            "name": img_name,
+                            "content": encoded_img
+                        })
+        
+        logger.info(f"Returning parsed Markdown and {len(images_payload)} images.")
+        return {
+            "markdown": markdown_content,
+            "images": images_payload
+        }
