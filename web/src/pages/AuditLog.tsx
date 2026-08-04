@@ -65,7 +65,7 @@ export const AuditLog: React.FC = () => {
         <div className="w-16 h-16 bg-dangerRed/10 border border-dangerRed/25 rounded-full flex items-center justify-center mx-auto text-dangerRed">
           <AlertOctagon className="w-8 h-8" />
         </div>
-        <h3 className="text-xl font-bold text-gray-100">Access Denied</h3>
+        <h3 className="text-xl font-bold text-slate-800 dark:text-gray-100">Access Denied</h3>
         <p className="text-sm text-gray-500 font-sans leading-relaxed">
           You do not have administrative privileges to view system audit logs. Please contact your system administrator.
         </p>
@@ -170,7 +170,7 @@ export const AuditLog: React.FC = () => {
       </div>
 
       {/* Filters and List */}
-      <div className="glass-panel border border-slate-800/50 rounded-2xl overflow-hidden">
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl overflow-hidden bg-white/40 dark:bg-slate-900/30">
         {/* Filters bar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800/50 bg-slate-100/30 dark:bg-slate-900/20 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -214,15 +214,15 @@ export const AuditLog: React.FC = () => {
             <p className="text-sm text-gray-500">Loading audit history...</p>
           </div>
         ) : logs.length === 0 ? (
-          <div className="p-12 text-center border-dashed border-slate-800 rounded-2xl">
-            <Activity className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-gray-300">No logs found</h3>
+          <div className="p-12 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+            <Activity className="w-12 h-12 text-gray-450 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-slate-700 dark:text-gray-300">No logs found</h3>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-800/50 text-xs font-semibold text-gray-400 uppercase bg-slate-900/10">
+                <tr className="border-b border-slate-200 dark:border-slate-800/50 text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase bg-slate-100/50 dark:bg-slate-900/10">
                   <th className="p-4 w-[60px] text-center">Icon</th>
                   <th className="p-4">Action</th>
                   <th className="p-4">Entity Type</th>
@@ -232,13 +232,13 @@ export const AuditLog: React.FC = () => {
                   <th className="p-4 text-right">Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/30">
+              <tbody className="divide-y divide-slate-200/50 dark:divide-slate-800/30">
                 {logs.map((item) => {
                   const ActionIcon = getActionIcon(item.action);
                   return (
-                    <tr key={item.id} className="hover:bg-slate-800/10 transition-colors">
+                    <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
                       <td className="p-4 w-[60px] text-center">
-                        <div className="w-8 h-8 rounded-lg border border-slate-800/50 bg-slate-900/50 flex items-center justify-center text-gray-400 mx-auto">
+                        <div className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-800/50 bg-slate-100 dark:bg-slate-900/50 flex items-center justify-center text-slate-700 dark:text-gray-400 mx-auto">
                           <ActionIcon className="w-4 h-4" />
                         </div>
                       </td>
@@ -247,16 +247,16 @@ export const AuditLog: React.FC = () => {
                           {item.action.replace('_', ' ')}
                         </span>
                       </td>
-                      <td className="p-4 text-sm text-gray-400 capitalize">{item.entity_type || '-'}</td>
-                      <td className="p-4 text-sm text-gray-400 font-mono text-center">{item.entity_id || '-'}</td>
-                      <td className="p-4 text-sm text-gray-500 font-mono">{item.ip_address || '-'}</td>
-                      <td className="p-4 text-xs text-gray-500">
+                      <td className="p-4 text-sm text-slate-650 dark:text-gray-400 capitalize">{item.entity_type || '-'}</td>
+                      <td className="p-4 text-sm text-slate-650 dark:text-gray-400 font-mono text-center">{item.entity_id || '-'}</td>
+                      <td className="p-4 text-sm text-slate-500 dark:text-gray-500 font-mono">{item.ip_address || '-'}</td>
+                      <td className="p-4 text-xs text-gray-500 dark:text-gray-500">
                         {new Date(item.created_at).toLocaleString()}
                       </td>
                       <td className="p-4 text-right">
                         <button
                           onClick={() => setViewingLog(item)}
-                          className="p-2 bg-slate-850 hover:bg-slate-800 border border-slate-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+                          className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-700 dark:text-gray-400 dark:hover:text-white transition-colors"
                           title="View detail JSON"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -272,7 +272,7 @@ export const AuditLog: React.FC = () => {
 
         {/* Pagination Controls */}
         {total > limit && (
-          <div className="p-4 border-t border-slate-800/50 bg-slate-900/10 flex justify-between items-center">
+          <div className="p-4 border-t border-slate-200 dark:border-slate-800/50 bg-slate-100/50 dark:bg-slate-900/10 flex justify-between items-center">
             <button
               disabled={page === 1}
               onClick={() => {
@@ -282,7 +282,7 @@ export const AuditLog: React.FC = () => {
                   return next;
                 });
               }}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-250 dark:border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-slate-700 dark:text-gray-300 transition-all"
             >
               Previous
             </button>
@@ -298,7 +298,7 @@ export const AuditLog: React.FC = () => {
                   return next;
                 });
               }}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 disabled:opacity-40 text-xs font-semibold rounded-xl text-gray-300 transition-all"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-250 dark:border-slate-750 disabled:opacity-40 text-xs font-semibold rounded-xl text-slate-700 dark:text-gray-300 transition-all"
             >
               Next
             </button>

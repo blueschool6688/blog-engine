@@ -62,3 +62,42 @@
   background-color: var(--btn-bg) !important;
   border-color: var(--btn-bg) !important;
 }
+
+/* Custom Public Navigation Menu overrides to remove bottom active border & center elements */
+.custom-public-menu.ant-menu-horizontal {
+  border-bottom: none !important;
+}
+
+.custom-public-menu.ant-menu-horizontal > .ant-menu-item::after,
+.custom-public-menu.ant-menu-horizontal > .ant-menu-submenu::after {
+  display: none !important;
+  border-bottom: none !important;
+}
+
+.custom-public-menu.ant-menu-horizontal > .ant-menu-item-selected::after,
+.custom-public-menu.ant-menu-horizontal > .ant-menu-submenu-selected::after {
+  display: none !important;
+  border-bottom: none !important;
+}
+
+.custom-public-menu .ant-menu-item {
+  height: 60px !important;
+  line-height: 60px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0 4px !important;
+  border-bottom: none !important;
+}
+
+.custom-public-menu .ant-menu-item a {
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.custom-public-menu .ant-menu-item-selected {
+  border-bottom: none !important;
+}

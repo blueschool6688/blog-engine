@@ -3,7 +3,7 @@ import { Link, useSearchParams, useLoaderData, useNavigation } from 'react-route
 import { publicService, settingsService } from '../services/api';
 import type { Post, Category, Tag } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
-import { Pagination, Input, Card, Tag as AntTag } from 'antd';
+import { Pagination, Input, Card, Tag as AntTag, Row, Col } from 'antd';
 import { PostCard, PostCardSkeleton } from '../components/PostCard';
 
 export async function loader({ request }: { request: Request }) {
@@ -297,11 +297,13 @@ export const BlogHome: React.FC = () => {
       </Card>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Row gutter={[24, 24]}>
           {[...Array(6)].map((_, i) => (
-            <PostCardSkeleton key={i} />
+            <Col key={i} xs={24} sm={12} md={8}>
+              <PostCardSkeleton />
+            </Col>
           ))}
-        </div>
+        </Row>
       ) : posts.length === 0 ? (
         <div className="text-center py-20 space-y-4">
           <div className="text-5xl">📭</div>
@@ -313,19 +315,20 @@ export const BlogHome: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Row gutter={[24, 24]}>
           {posts.map((post: Post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              language={language}
-              t={t}
-              formatRelative={formatRelative}
-              estimateReadTime={estimateReadTime}
-              toggleFilter={toggleFilter}
-            />
+            <Col key={post.id} xs={24} sm={12} md={8}>
+              <PostCard
+                post={post}
+                language={language}
+                t={t}
+                formatRelative={formatRelative}
+                estimateReadTime={estimateReadTime}
+                toggleFilter={toggleFilter}
+              />
+            </Col>
           ))}
-        </div>
+        </Row>
       )}
 
       {total > LIMIT && (
@@ -346,11 +349,13 @@ export const BlogHome: React.FC = () => {
 export function HydrateFallback() {
   return (
     <div className="mx-auto space-y-8 select-none max-w-7xl px-4 pt-10">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <Row gutter={[24, 24]}>
         {[...Array(6)].map((_, i) => (
-          <PostCardSkeleton key={i} />
+          <Col key={i} xs={24} sm={12} md={8}>
+            <PostCardSkeleton />
+          </Col>
         ))}
-      </div>
+      </Row>
     </div>
   );
 }

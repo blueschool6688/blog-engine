@@ -280,7 +280,7 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
   );
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6">
       {/* Delete Confirmation Modal using Antd */}
       <Modal
         open={deleteMediaId !== null}
@@ -297,7 +297,7 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
       </Modal>
 
       <div>
-        <h3 className="text-base font-bold text-gray-100">Post Gallery</h3>
+        <h3 className="text-base font-bold text-slate-800 dark:text-gray-100">Post Gallery</h3>
         <p className="text-xs text-gray-400 mt-1">
           Attach media files, write captions & alt texts, and drag to change display order.
         </p>
@@ -429,7 +429,7 @@ export const GalleryUploader: React.FC<GalleryUploaderProps> = ({ postId }) => {
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="border-2 border-dashed border-slate-200 dark:border-slate-880 hover:border-accentBlue/50 hover:bg-accentBlue/5 rounded-xl aspect-video flex flex-col items-center justify-center text-slate-500 dark:text-gray-400 hover:text-accentBlue transition-all cursor-pointer min-h-[220px]"
+            className="border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-accentBlue/50 hover:bg-accentBlue/5 rounded-xl aspect-video flex flex-col items-center justify-center text-slate-500 dark:text-gray-400 hover:text-accentBlue transition-all cursor-pointer min-h-[220px] bg-slate-50/50 dark:bg-transparent"
           >
             <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-full mb-2">
               <PlusIcon className="w-6 h-6" />

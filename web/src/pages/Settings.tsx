@@ -361,7 +361,7 @@ export const Settings: React.FC = () => {
       </div>
 
       {/* Tab Contents */}
-      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 md:p-8 bg-slate-900/30">
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 md:p-8 bg-white/40 dark:bg-slate-900/30">
         <>
             {/* SITE CONFIG TAB */}
             {activeTab === 'site' && (

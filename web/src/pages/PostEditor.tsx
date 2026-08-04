@@ -386,7 +386,7 @@ export const PostEditor: React.FC = () => {
         <div className="flex items-center space-x-3">
           <Link
             to="/admin/posts"
-            className="p-2 rounded-lg bg-slate-900/60 hover:bg-slate-950 text-gray-400 hover:text-white border border-slate-800 transition-colors"
+            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900/60 dark:hover:bg-slate-950 text-slate-700 dark:text-gray-400 dark:hover:text-white border border-slate-200 dark:border-slate-800 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>

@@ -306,7 +306,7 @@ export const MediaLibrary: React.FC = () => {
       </div>
 
       {/* Drag & Drop Zone using Antd Upload Dragger */}
-      <div className="bg-slate-900/10 dark:bg-slate-950/20 rounded-2xl overflow-hidden border border-dashed border-slate-800 hover:border-accentBlue/40 transition-colors">
+      <div className="bg-slate-100/50 dark:bg-slate-950/20 rounded-2xl overflow-hidden border border-dashed border-slate-300 dark:border-slate-800 hover:border-accentBlue/40 transition-colors">
         <Upload.Dragger
           customRequest={handleUpload}
           beforeUpload={beforeUpload}
@@ -328,7 +328,7 @@ export const MediaLibrary: React.FC = () => {
       </div>
 
       {/* Toolbar / Filters */}
-      <div className="glass-panel border border-slate-800/50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-4 bg-white/40 dark:bg-slate-900/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Type Badge Filter using Antd Segmented */}
         <Segmented
           value={typeFilter}
@@ -463,7 +463,7 @@ export const MediaLibrary: React.FC = () => {
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handlePreviewMedia(media)}
-                        className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+                        className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-gray-400 dark:hover:text-white border border-slate-250 dark:border-slate-800 rounded-lg transition-colors"
                         title="Preview details"
                       >
                         <EyeIcon className="w-3.5 h-3.5" />

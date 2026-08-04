@@ -155,7 +155,7 @@ export const PostList: React.FC = () => {
       width: 80,
       render: (_: any, record: Post) => {
         const thumb = record.cover_media ? (
-          <div className="w-12 h-12 rounded-lg bg-slate-950 overflow-hidden flex items-center justify-center border border-slate-800">
+          <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center border border-slate-200 dark:border-slate-800">
             <img
               src={getFullUrl(record.cover_media.thumbnail_url || record.cover_media.url)}
               alt=""
@@ -163,7 +163,7 @@ export const PostList: React.FC = () => {
             />
           </div>
         ) : (
-          <div className="w-12 h-12 rounded-lg bg-slate-900/60 border border-slate-800/80 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-center">
             <Plus className="w-4 h-4 text-gray-650" />
           </div>
         );
@@ -286,7 +286,7 @@ export const PostList: React.FC = () => {
                 type="text"
                 icon={<Edit2 className="w-3.5 h-3.5" />}
                 onClick={() => navigate(`/admin/posts/edit/${record.id}`)}
-                className="bg-slate-800 hover:bg-slate-700/80 text-gray-300 flex items-center justify-center p-2 rounded-lg border border-slate-750"
+                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-gray-300 flex items-center justify-center p-2 rounded-lg border border-slate-250 dark:border-slate-750"
               />
             </Tooltip>
             <Tooltip title="Delete Post">
@@ -337,7 +337,7 @@ export const PostList: React.FC = () => {
 
         {/* Bulk Action Toolbar */}
         {selectedRowKeys.length > 0 && (
-          <div className="bg-slate-900/60 border border-slate-800/50 p-3.5 rounded-xl flex items-center justify-between animate-fade-in z-20">
+          <div className="bg-slate-100/90 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/50 p-3.5 rounded-xl flex items-center justify-between animate-fade-in z-20">
             <div className="flex items-center space-x-3 select-none">
               <span className="text-xs bg-accentBlue/15 border border-accentBlue/25 text-accentBlue px-2.5 py-1 rounded-full font-semibold">
                 {selectedRowKeys.length} {t('selected')}
@@ -356,14 +356,14 @@ export const PostList: React.FC = () => {
               <Button
                 loading={isBulkLoading}
                 onClick={() => handleBulkAction('publish')}
-                className="bg-slate-850 hover:bg-slate-800 border-slate-800 text-successGreen hover:text-successGreen text-xs h-9 rounded-xl font-bold"
+                className="bg-white dark:bg-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800 text-successGreen hover:text-successGreen text-xs h-9 rounded-xl font-bold"
               >
                 {t('filter_published')}
               </Button>
               <Button
                 loading={isBulkLoading}
                 onClick={() => handleBulkAction('draft')}
-                className="bg-slate-850 hover:bg-slate-800 border-slate-800 text-warningYellow hover:text-warningYellow text-xs h-9 rounded-xl font-bold"
+                className="bg-white dark:bg-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800 text-warningYellow hover:text-warningYellow text-xs h-9 rounded-xl font-bold"
               >
                 {t('filter_draft')}
               </Button>

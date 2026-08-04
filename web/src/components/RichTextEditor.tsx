@@ -49,7 +49,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
     },
     editorProps: {
       attributes: {
-        class: 'w-full bg-slate-900 focus:outline-none min-h-[350px] px-4 py-3 leading-relaxed text-gray-100 placeholder-gray-600',
+        class: 'w-full bg-white dark:bg-slate-900 focus:outline-none min-h-[350px] px-4 py-3 leading-relaxed text-slate-850 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600',
       },
     },
   });
@@ -97,14 +97,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
   };
 
   return (
-    <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900 focus-within:ring-1 focus-within:ring-accentBlue/50 focus-within:border-accentBlue/50 transition-all">
+    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 focus-within:ring-1 focus-within:ring-accentBlue/50 focus-within:border-accentBlue/50 transition-all">
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-1 p-2 bg-slate-950 border-b border-slate-800/80">
+      <div className="flex flex-wrap gap-1 p-2 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800/80">
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('heading', { level: 1 }) ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-250 ${
+            editor.isActive('heading', { level: 1 }) ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Heading 1"
         >
@@ -113,8 +113,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('heading', { level: 2 }) ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-250 ${
+            editor.isActive('heading', { level: 2 }) ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Heading 2"
         >
@@ -123,21 +123,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('heading', { level: 3 }) ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-250 ${
+            editor.isActive('heading', { level: 3 }) ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Heading 3"
         >
           <Heading3 className="w-4 h-4" />
         </button>
 
-        <div className="w-px h-6 bg-slate-800 my-auto mx-1" />
+        <div className="w-px h-6 bg-slate-250 dark:bg-slate-800 my-auto mx-1" />
 
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('bold') ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-250 ${
+            editor.isActive('bold') ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Bold"
         >
@@ -146,21 +146,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('italic') ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-250 ${
+            editor.isActive('italic') ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Italic"
         >
           <Italic className="w-4 h-4" />
         </button>
 
-        <div className="w-px h-6 bg-slate-800 my-auto mx-1" />
+        <div className="w-px h-6 bg-slate-250 dark:bg-slate-800 my-auto mx-1" />
 
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('bulletList') ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-250 ${
+            editor.isActive('bulletList') ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Bullet List"
         >
@@ -169,21 +169,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('orderedList') ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-250 ${
+            editor.isActive('orderedList') ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Ordered List"
         >
           <ListOrdered className="w-4 h-4" />
         </button>
 
-        <div className="w-px h-6 bg-slate-800 my-auto mx-1" />
+        <div className="w-px h-6 bg-slate-250 dark:bg-slate-800 my-auto mx-1" />
 
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('blockquote') ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-250 ${
+            editor.isActive('blockquote') ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Blockquote"
         >
@@ -193,8 +193,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
         <button
           type="button"
           onClick={openLinkModal}
-          className={`p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200 ${
-            editor.isActive('link') ? 'bg-slate-800 text-white' : ''
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-850 dark:hover:text-gray-200 ${
+            editor.isActive('link') ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white' : ''
           }`}
           title="Insert Link"
         >
@@ -204,7 +204,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
         <button
           type="button"
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          className="p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200"
+          className="p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-850 dark:hover:text-gray-205"
           title="Horizontal Rule"
         >
           <Minus className="w-4 h-4" />
@@ -213,18 +213,18 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
         <button
           type="button"
           onClick={openMediaModal}
-          className="p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200"
+          className="p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-850 dark:hover:text-gray-205"
           title="Insert Image"
         >
           <ImageIcon className="w-4 h-4" />
         </button>
 
-        <div className="w-px h-6 bg-slate-800 my-auto mx-1" />
+        <div className="w-px h-6 bg-slate-250 dark:bg-slate-800 my-auto mx-1" />
 
         <button
           type="button"
           onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
-          className="p-2 rounded-lg transition-colors hover:bg-slate-800 text-gray-400 hover:text-gray-200"
+          className="p-2 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-gray-400 hover:text-slate-850 dark:hover:text-gray-205"
           title="Clear Formatting"
         >
           <Eraser className="w-4 h-4" />

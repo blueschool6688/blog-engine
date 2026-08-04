@@ -19,7 +19,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { Skeleton, Button, Modal } from 'antd';
+import { Skeleton, Button, Modal, Breadcrumb, Row, Col, Divider } from 'antd';
 import { PostCard } from '../components/PostCard';
 
 export async function loader({ params }: { params: any }) {
@@ -552,24 +552,33 @@ export const BlogPostDetail: React.FC = () => {
 
         <div className={`mx-auto max-w-6xl px-4 sm:px-6`}>
           {/* Breadcrumbs */}
-          <nav className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-gray-500 mb-6 flex-wrap" aria-label="Breadcrumb">
-            <Link to="/" className="flex items-center gap-1 hover:text-accentBlue transition-colors font-medium">
-              <Home className="w-3.5 h-3.5" />
-              <span>{t('home')}</span>
-            </Link>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-350" />
-            {primaryCategory && buildCategoryBreadcrumbs(primaryCategory).map((crumb) => (
-              <React.Fragment key={crumb.id}>
-                <Link to={`/?category=${crumb.slug}`} className="hover:text-accentBlue transition-colors font-medium">
-                  {language === 'en' ? (crumb.name_en || crumb.name) : crumb.name}
-                </Link>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-355" />
-              </React.Fragment>
-            ))}
-            <span className="text-slate-700 dark:text-gray-300 font-medium truncate max-w-[180px] md:max-w-sm">
-              {language === 'en' ? (post.title_en || post.title) : post.title}
-            </span>
-          </nav>
+          <Breadcrumb
+            items={[
+              {
+                title: (
+                  <Link to="/" className="flex items-center gap-1 hover:text-accentBlue transition-colors font-medium">
+                    <Home className="w-3.5 h-3.5 mr-1 inline-block" />
+                    <span>{t('home')}</span>
+                  </Link>
+                )
+              },
+              ...(primaryCategory ? buildCategoryBreadcrumbs(primaryCategory).map((crumb) => ({
+                title: (
+                  <Link to={`/?category=${crumb.slug}`} className="hover:text-accentBlue transition-colors font-medium">
+                    {language === 'en' ? (crumb.name_en || crumb.name) : crumb.name}
+                  </Link>
+                )
+              })) : []),
+              {
+                title: (
+                  <span className="text-slate-700 dark:text-gray-300 font-medium truncate max-w-[180px] md:max-w-sm">
+                    {language === 'en' ? (post.title_en || post.title) : post.title}
+                  </span>
+                )
+              }
+            ]}
+            className="mb-6"
+          />
 
           <div className={`flex flex-col gap-8 lg:gap-12 items-start w-full max-w-full ${post.is_document ? 'lg:flex-col' : 'lg:flex-row'}`}>
             <article className={`flex-1 min-w-0 w-full max-w-full ${post.is_document ? 'w-full' : ''}`}>
@@ -602,7 +611,7 @@ export const BlogPostDetail: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-gray-500 pb-6 mb-8 border-b border-slate-200 dark:border-slate-800/80">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-gray-500">
                 {post.author && (
                   <div className="flex items-center gap-2">
                     {post.author.avatar_url ? (
@@ -628,6 +637,7 @@ export const BlogPostDetail: React.FC = () => {
                   <span>{language === 'vi' ? `${readTime} phút đọc` : `${readTime} min read`}</span>
                 </div>
               </div>
+              <Divider className="my-6" />
 
               {post.is_document && post.pdf_media && (
                 <div className="rounded-2xl overflow-hidden mb-8 shadow-lg border border-red-500/25 bg-slate-900/40 p-4 space-y-3">
@@ -707,7 +717,8 @@ export const BlogPostDetail: React.FC = () => {
               />
 
               {post.gallery && post.gallery.length > 0 && (
-                <div className="mt-10 pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-4">
+                <div className="mt-10 space-y-4">
+                  <Divider className="my-8" />
                   <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <Image className="w-4.5 h-4.5 text-accentBlue" />
                     <span>Hình ảnh ({post.gallery.length})</span>
@@ -763,17 +774,20 @@ export const BlogPostDetail: React.FC = () => {
               )}
 
               {post.tags && post.tags.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 mt-10 pt-6 border-t border-slate-200 dark:border-slate-800/80">
-                  <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-gray-500 shrink-0" />
-                  {post.tags.map((tag) => (
-                    <Link
-                      key={tag.id}
-                      to={`/?tag=${tag.slug}`}
-                      className="px-3 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-900/60 text-slate-600 dark:text-gray-400 hover:bg-accentBlue/10 hover:text-accentBlue border border-slate-200 dark:border-slate-800/80 hover:border-accentBlue/20 rounded-full transition-all"
-                    >
-                      #{tag.name}
-                    </Link>
-                  ))}
+                <div className="mt-10">
+                  <Divider className="my-8" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-gray-500 shrink-0" />
+                    {post.tags.map((tag) => (
+                      <Link
+                        key={tag.id}
+                        to={`/?tag=${tag.slug}`}
+                        className="px-3 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-900/60 text-slate-600 dark:text-gray-400 hover:bg-accentBlue/10 hover:text-accentBlue border border-slate-200 dark:border-slate-800/80 hover:border-accentBlue/20 rounded-full transition-all"
+                      >
+                        #{tag.name}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -814,7 +828,8 @@ export const BlogPostDetail: React.FC = () => {
 
               {/* Related Posts Section */}
               {relatedPosts.length > 0 && (
-                <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-6">
+                <div className="mt-12 space-y-6">
+                  <Divider className="my-8" />
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                       <Sparkles className="w-5 h-5 text-accentBlue" />
@@ -825,19 +840,20 @@ export const BlogPostDetail: React.FC = () => {
                     </Link>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <Row gutter={[20, 20]}>
                     {relatedPosts.map((relPost) => (
-                      <PostCard
-                        key={relPost.id}
-                        post={relPost}
-                        language={language}
-                        t={t}
-                        formatRelative={(dateStr) => dateStr}
-                        estimateReadTime={() => 5}
-                        toggleFilter={() => { }}
-                      />
+                      <Col key={relPost.id} xs={24} sm={12} md={8}>
+                        <PostCard
+                          post={relPost}
+                          language={language}
+                          t={t}
+                          formatRelative={(dateStr) => dateStr}
+                          estimateReadTime={() => 5}
+                          toggleFilter={() => { }}
+                        />
+                      </Col>
                     ))}
-                  </div>
+                  </Row>
                 </div>
               )}
 

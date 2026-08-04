@@ -180,7 +180,7 @@ export const Dashboard: React.FC = () => {
       {/* Analytics Chart & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Daily Page Views Chart (Recharts Area) */}
-        <div className="lg:col-span-2 glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 flex flex-col justify-between space-y-4 bg-slate-900/30">
+        <div className="lg:col-span-2 glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 flex flex-col justify-between space-y-4 bg-white/40 dark:bg-slate-900/30">
           <div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-gray-200">Daily Page Views</h3>
             <p className="text-xs text-gray-500 mt-0.5">Tracking website traffic and readership logs over the last 30 days.</p>
@@ -235,7 +235,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="glass-panel rounded-2xl p-6 border border-slate-200 dark:border-slate-800/50 flex flex-col justify-between bg-slate-900/30">
+        <div className="glass-panel rounded-2xl p-6 border border-slate-200 dark:border-slate-800/50 flex flex-col justify-between bg-white/40 dark:bg-slate-900/30">
           <div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-gray-200">Quick Actions</h3>
             <p className="text-xs text-gray-500 mt-0.5">Shortcuts to common operations.</p>
@@ -263,7 +263,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Recent Posts List */}
-      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 bg-slate-900/30">
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 bg-white/40 dark:bg-slate-900/30">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-gray-200">Recent Posts</h3>
@@ -365,17 +365,17 @@ export function HydrateFallback() {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {[...Array(7)].map((_, i) => (
-          <div key={i} className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6">
+          <div key={i} className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 bg-white/40 dark:bg-slate-900/30">
             <Skeleton active paragraph={false} title={{ width: '80%' }} />
             <Skeleton active paragraph={{ rows: 1, width: '40%' }} title={false} className="mt-2" />
           </div>
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 h-[400px]">
+        <div className="lg:col-span-2 glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 h-[400px] bg-white/40 dark:bg-slate-900/30">
           <Skeleton active paragraph={{ rows: 8 }} title={{ width: '40%' }} />
         </div>
-        <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 h-[400px]">
+        <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl p-6 h-[400px] bg-white/40 dark:bg-slate-900/30">
           <Skeleton active paragraph={{ rows: 6 }} title={{ width: '40%' }} />
         </div>
       </div>

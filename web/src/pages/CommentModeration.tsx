@@ -126,7 +126,7 @@ export const CommentModeration: React.FC = () => {
       </div>
 
       {/* Filters and List */}
-      <div className="glass-panel border border-slate-800/50 rounded-2xl overflow-hidden">
+      <div className="glass-panel border border-slate-200 dark:border-slate-800/50 rounded-2xl overflow-hidden bg-white/40 dark:bg-slate-900/30">
         {/* Filters bar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800/50 bg-slate-100/30 dark:bg-slate-900/20 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex bg-slate-100 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800 rounded-xl self-start">
