@@ -11,6 +11,11 @@ The core of this system integrates heavily with NVIDIA's AI endpoints to provide
 - **AI Content Generator**: An intelligent agent that helps draft and auto-generate complete, SEO-optimized blog posts based on brief prompts or outlines, drastically speeding up content creation.
 - **Spam Moderation**: Uses a lightweight model (`meta/llama-3.1-8b-instruct`) to automatically analyze comments and feedback for spam, drastically reducing manual moderation time.
 - **Auto-Translation Agent**: An automated background agent uses AI to translate entire blog posts into different languages reliably, chunking content to ensure context is maintained.
+- **Document-to-Markdown Parser (MinerU / Dual-Engine)**: Allows admins to upload PDF/DOCX files (drafts, books, articles) to directly convert them into SEO-ready blog posts. 
+  - *Advanced Mode*: Powered by MinerU (`magic-pdf`) for AI-driven layout analysis and complex table/formula extraction.
+  - *Lightweight Mode*: Automatically falls back to a fast parser using `pymupdf` and `mammoth` (under 50MB RAM, instant startup, no heavy models required).
+  - *Smart Table of Contents (TOC)*: Heuristically detects chapters and automatically converts the document's printed TOC into interactive anchor links for smooth scrolling on the client detail page.
+  - *Automated Image Extraction & Cloud Linking*: Automatically extracts images, uploads them to the configured media storage provider (Local/S3), creates media database records, and rewrites markdown image links.
 
 ### 📝 Content Management
 - **Rich Text Editor**: Powerful and intuitive editor for crafting engaging blog posts.
@@ -57,6 +62,7 @@ The core of this system integrates heavily with NVIDIA's AI endpoints to provide
 
 - `/backend`: Go source code, REST APIs, database models, repository layers, and background workers.
 - `/web`: React frontend source code, reusable components, custom hooks, contexts, and pages.
+- `/mineru-service`: Python FastAPI microservice hosting the dual-engine document parser (MinerU & PyMuPDF/Mammoth).
 
 ## 🤖 Built by AI Agents
 
@@ -87,6 +93,15 @@ This entire blog engine (both frontend and backend) was generated, structured, a
    cd web
    npm install
    npm run dev
+   ```
+
+3. **Start the Document Parser Service (Optional):**
+   ```bash
+   cd mineru-service
+   # Highly recommended for quick local setup (uses <50MB RAM)
+   ./start.sh --light
+   # Or run without flags to install full deep-learning AI weights
+   ./start.sh
    ```
 
 ## 🐳 Docker Deployment
