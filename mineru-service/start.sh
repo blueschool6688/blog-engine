@@ -30,5 +30,6 @@ if [ "$LIGHT_MODE" = false ]; then
 fi
 
 # Run the FastAPI app
-echo "Starting FastAPI server on http://localhost:8082..."
-exec uvicorn app:app --host 127.0.0.1 --port 8082 --log-level info
+echo "Starting FastAPI server on http://0.0.0.0:8082..."
+exec uvicorn app:app --host 0.0.0.0 --port 8082 --log-level info
+

@@ -4,8 +4,13 @@ import base64
 import tempfile
 import subprocess
 import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import JSONResponse
+
+# 100 MB max upload size
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+
+app = FastAPI(title="MinerU Parser Service")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -31,9 +36,9 @@ except ImportError as e:
     LIGHTWEIGHT_AVAILABLE = False
     logger.error(f"Failed to load lightweight fallback libraries: {e}")
 
-app = FastAPI(title="MinerU Parser Service")
 
 @app.get("/")
+
 def read_root():
     return {
         "message": "MinerU Parser Service is running. Access /docs for API documentation.",
@@ -167,9 +172,21 @@ async def parse_file(file: UploadFile = File(...)):
         input_path = os.path.join(temp_dir, filename)
         logger.info(f"Saving uploaded file to {input_path}")
         
+        # Read file in chunks to support large files without OOM
+        total_bytes = 0
         with open(input_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
+            while True:
+                chunk = await file.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum allowed size is {MAX_UPLOAD_BYTES // (1024*1024)}MB."
+                    )
+                f.write(chunk)
+        logger.info(f"File saved: {filename} ({total_bytes / 1024 / 1024:.2f} MB)")
 
         image_dir_name = "images"
         image_dir_path = os.path.join(temp_dir, image_dir_name)
