@@ -108,29 +108,9 @@ def promote_headings_to_markdown(text: str) -> str:
     return "\n".join(processed_lines)
 
 def parse_docx_light(docx_path, image_dir_path):
-    images = []
-
-    def convert_image(image):
-        with image.open() as image_bytes:
-            data = image_bytes.read()
-            ext = "png"
-            if image.content_type == "image/jpeg":
-                ext = "jpeg"
-            elif image.content_type == "image/gif":
-                ext = "gif"
-
-            img_name = f"image_docx_{len(images) + 1}.{ext}"
-            img_path = os.path.join(image_dir_path, img_name)
-            with open(img_path, "wb") as f:
-                f.write(data)
-
-            images.append(img_name)
-            return {
-                "src": f"images/{img_name}"
-            }
-
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_markdown(docx_file, convert_image=mammoth.images.img_element(convert_image))
+        # Convert to markdown directly without extracting images to save memory
+        result = mammoth.convert_to_markdown(docx_file)
         return promote_headings_to_markdown(result.value)
 
 def parse_pdf_light(pdf_path, image_dir_path):
@@ -141,22 +121,6 @@ def parse_pdf_light(pdf_path, image_dir_path):
         text = page.get_text("text")
         if text:
             md_blocks.append(text)
-
-        # Extract images on the page
-        image_list = page.get_images(full=True)
-        for img_idx, img_info in enumerate(image_list):
-            xref = img_info[0]
-            base_image = doc.extract_image(xref)
-            image_bytes = base_image["image"]
-            image_ext = base_image["ext"]
-
-            img_name = f"image_pdf_page_{page_idx+1}_{img_idx+1}.{image_ext}"
-            img_path = os.path.join(image_dir_path, img_name)
-
-            with open(img_path, "wb") as f:
-                f.write(image_bytes)
-
-            md_blocks.append(f"\n![](images/{img_name})\n")
 
     full_text = "\n\n".join(md_blocks)
     return promote_headings_to_markdown(full_text)
