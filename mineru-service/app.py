@@ -68,14 +68,23 @@ def linkify_toc_lines(text: str) -> str:
     processed_lines = []
     for line in lines:
         stripped = line.strip()
-        if stripped and not stripped.startswith("#"):
-            # Match: Title + sequence of dots/spaces + page number
-            match = re.match(r"^([a-zA-Z0-9\s:,\-\'\u00C0-\u024F\?\!\/]+?)(?:\s*[\.\s]{4,}\s*)(\d+)\s*$", stripped)
+        if not stripped or stripped.startswith("#"):
+            processed_lines.append(line)
+            continue
+        
+        # Pre-filter: Only examine short lines ending with a number (TOC entries)
+        # to prevent catastrophic regex backtracking on long body text paragraphs
+        if len(stripped) < 150 and stripped[-1].isdigit() and ("." in stripped or "  " in stripped):
+            # Match dots and page number at the end of the line
+            match = re.search(r"(\s*[\.\s]{4,}\s*)(\d+)$", stripped)
             if match:
-                title = match.group(1).strip()
-                slug = slugify(title)
-                dots_part = stripped[match.end(1):]
-                line = f"[{title}](#{slug}){dots_part}"
+                dots_part = match.group(1)
+                page_part = match.group(2)
+                title = stripped[:match.start(1)].strip()
+                # Ensure it is not already a markdown link
+                if title and not "[" in title:
+                    slug = slugify(title)
+                    line = f"[{title}](#{slug}){dots_part}{page_part}"
         processed_lines.append(line)
     return "\n".join(processed_lines)
 
