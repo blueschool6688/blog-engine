@@ -77,7 +77,11 @@ func (s *DocumentParserService) ParseDocument(ctx context.Context, filename stri
 			MarkdownResult: markdownResult,
 			DurationMs:     duration,
 		}
-		_ = s.db.Create(history)
+		if dbErr := s.db.Create(history).Error; dbErr != nil {
+			fmt.Printf("❌ [DocumentParser] Failed to save parse history to DB: %v\n", dbErr)
+		} else {
+			fmt.Printf("✅ [DocumentParser] Successfully saved parse history to DB, ID: %d\n", history.ID)
+		}
 	}()
 
 	// 1. Create multipart request body
