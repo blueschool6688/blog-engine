@@ -123,16 +123,24 @@ def parse_docx_light(docx_path, image_dir_path):
         return promote_headings_to_markdown(result.value)
 
 def parse_pdf_light(pdf_path, image_dir_path):
+    logger.info(f"Opening PDF file: {pdf_path}")
     doc = fitz.open(pdf_path)
+    total_pages = len(doc)
+    logger.info(f"PDF opened successfully. Total pages: {total_pages}")
     md_blocks = []
 
     for page_idx, page in enumerate(doc):
+        if page_idx % 10 == 0 or page_idx == total_pages - 1:
+            logger.info(f"Extracting text from page {page_idx + 1}/{total_pages}...")
         text = page.get_text("text")
         if text:
             md_blocks.append(text)
 
+    logger.info("PDF text extraction completed. Running heading promoter...")
     full_text = "\n\n".join(md_blocks)
-    return promote_headings_to_markdown(full_text)
+    result = promote_headings_to_markdown(full_text)
+    logger.info("Heading promotion completed.")
+    return result
 
 @app.post("/parse")
 async def parse_file(file: UploadFile = File(...)):
